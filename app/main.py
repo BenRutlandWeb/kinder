@@ -703,6 +703,23 @@ async def clear_picks(body: UnlinkRequest):
             "DELETE FROM user_custom_picks WHERE user_id = ?",
             (body.user_id,),
         )
+        await db.execute(
+            """
+            DELETE FROM custom_swipes
+            WHERE custom_recommendation_id IN (
+                SELECT id FROM custom_recommendations WHERE recommender_id = ?
+            )
+            """,
+            (body.user_id,),
+        )
+        await db.execute(
+            "DELETE FROM custom_recommendations WHERE recommender_id = ?",
+            (body.user_id,),
+        )
+        await db.execute(
+            "DELETE FROM recommendations WHERE recommender_id = ?",
+            (body.user_id,),
+        )
         await db.commit()
         return {"ok": True, "deleted": deleted}
     finally:

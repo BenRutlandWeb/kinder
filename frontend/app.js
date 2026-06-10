@@ -659,7 +659,8 @@ async function clearPicks() {
 
   const confirmed = await showConfirmDialog({
     title: "Clear picks?",
-    message: "All names you liked will show up in your deck again. This cannot be undone.",
+    message:
+      "All names you liked will show up in your deck again, and any custom names or recommendations you sent will be removed. This cannot be undone.",
     confirmLabel: "Clear picks",
     danger: true,
   });
@@ -686,7 +687,11 @@ async function clearPicks() {
       throw new Error(message);
     }
 
-    await Promise.all([loadPicks(), fetchNextName()]);
+    const refresh = [loadPicks(), fetchNextName()];
+    if (state.linked) {
+      refresh.push(loadSentRecommendations(), loadMatches());
+    }
+    await Promise.all(refresh);
   } catch (err) {
     alert(err.message);
     await loadPicks();
