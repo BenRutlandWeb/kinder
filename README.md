@@ -60,7 +60,13 @@ git pull
 docker compose up -d --build
 ```
 
-If the UI still looks old after deploy, the browser may be serving a cached copy from the service worker. Hard-refresh the page, or clear site data for the Kinder URL in your browser settings.
+If the UI still looks old after deploy, something is still serving cached HTML, CSS, or JS. Work through these in order:
+
+1. Rebuild the container: `docker compose up -d --build`
+2. Hard-refresh the page, or clear site data for the Kinder URL in your browser settings
+3. If the site is behind **Cloudflare** (orange-cloud proxied domain, not just `cloudflared` tunnel), purge the cache for that hostname in the Cloudflare dashboard (**Caching → Configuration → Purge Everything**). The tunnel itself does not cache, but Cloudflare's CDN in front of it can if the domain is proxied
+
+Kinder sends `Cache-Control: no-store` on HTML, JS, and CSS so edge caches should not keep stale UI files after a purge.
 
 ## Data
 

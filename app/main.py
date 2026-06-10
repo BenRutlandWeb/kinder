@@ -5,9 +5,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator, model_validator
+from starlette.responses import Response
 
 
 from app.database import get_db, init_db
@@ -26,6 +27,20 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Kinder", lifespan=lifespan)
+
+NO_STORE_PATHS = frozenset({"/", "/index.html", "/app.js", "/style.css", "/sw.js"})
+
+
+@app.middleware("http")
+async def cache_control(request: Request, call_next):
+    response: Response = await call_next(request)
+    path = request.url.path
+    if path in NO_STORE_PATHS or path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+    elif path.startswith("/icons/"):
+        response.headers["Cache-Control"] = "public, max-age=86400"
+    return response
 
 
 class SwipeRequest(BaseModel):

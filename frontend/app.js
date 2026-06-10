@@ -1,5 +1,8 @@
 const STORAGE_KEY = "babynames-user";
 const SURNAME_STORAGE_KEY = "babynames-surname";
+const ASSET_VERSION =
+  document.querySelector('meta[name="kinder-asset-version"]')?.content || "12";
+const STALE_RELOAD_KEY = "kinder-stale-reload";
 
 const state = {
   userId: null,
@@ -108,7 +111,9 @@ const els = {
 let confirmResolve = null;
 
 function showConfirmDialog({ title, message, confirmLabel = "Confirm", danger = false }) {
-  if (!els.confirmDialog) return Promise.resolve(false);
+  if (!els.confirmDialog || typeof els.confirmDialog.showModal !== "function") {
+    return Promise.resolve(window.confirm(`${title}\n\n${message}`));
+  }
 
   return new Promise((resolve) => {
     confirmResolve = resolve;
@@ -1187,12 +1192,50 @@ async function init() {
   showSignIn();
 }
 
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" }).catch(() => {
-      /* offline support is optional */
-    });
-  });
+async function clearAppCaches() {
+  if ("serviceWorker" in navigator) {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(regs.map((registration) => registration.unregister()));
+  }
+  if ("caches" in window) {
+    const keys = await caches.keys();
+    await Promise.all(keys.map((key) => caches.delete(key)));
+  }
 }
 
-init();
+async function recoverFromStaleCache() {
+  const deleteBtn = document.getElementById("delete-account-btn");
+  if (!deleteBtn) return;
+
+  const dialog = document.getElementById("confirm-dialog");
+  const layoutOk = document.querySelector(".settings-field") !== null;
+  const dialogOk = dialog && typeof dialog.showModal === "function";
+  if (layoutOk && dialogOk) return;
+  if (sessionStorage.getItem(STALE_RELOAD_KEY) === ASSET_VERSION) return;
+
+  sessionStorage.setItem(STALE_RELOAD_KEY, ASSET_VERSION);
+  await clearAppCaches();
+
+  const url = new URL(window.location.href);
+  url.searchParams.set("_", ASSET_VERSION);
+  window.location.replace(url.toString());
+}
+
+async function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+
+  try {
+    const registration = await navigator.serviceWorker.register("/sw.js", { updateViaCache: "none" });
+    await registration.update();
+  } catch {
+    /* offline support is optional */
+  }
+}
+
+async function bootstrap() {
+  await recoverFromStaleCache();
+  await registerServiceWorker();
+  await init();
+}
+
+bootstrap();
