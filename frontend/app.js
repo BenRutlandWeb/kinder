@@ -188,13 +188,19 @@ function showInviteLinkFeedback(url, copied) {
     els.inviteFeedback.textContent =
       "Link copied — paste it in WhatsApp, Gmail, or anywhere.";
   } else {
-    els.inviteFeedback.innerHTML = `Copy this link:<br><a href="${url}">${url}</a>`;
+    const safeUrl = url.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+    els.inviteFeedback.innerHTML =
+      `Copy this link and send it to your partner:<br>` +
+      `<input type="text" class="invite-link-input" readonly value="${safeUrl}" aria-label="Invite link">`;
+    const input = els.inviteFeedback.querySelector(".invite-link-input");
+    input?.addEventListener("focus", () => input.select());
+    input?.addEventListener("click", () => input.select());
   }
   els.inviteFeedback.classList.remove("hidden");
 }
 
 async function copyTextToClipboard(text) {
-  if (navigator.clipboard?.write && window.ClipboardItem) {
+  if (window.isSecureContext && navigator.clipboard?.write && window.ClipboardItem) {
     try {
       await navigator.clipboard.write([
         new ClipboardItem({
@@ -207,7 +213,7 @@ async function copyTextToClipboard(text) {
     }
   }
 
-  if (navigator.clipboard?.writeText) {
+  if (window.isSecureContext && navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(text);
       return true;
@@ -220,9 +226,15 @@ async function copyTextToClipboard(text) {
   textarea.value = text;
   textarea.setAttribute("readonly", "");
   textarea.style.position = "fixed";
-  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  textarea.style.left = "0";
+  textarea.style.width = "2em";
+  textarea.style.height = "2em";
+  textarea.style.opacity = "0";
   document.body.appendChild(textarea);
+  textarea.focus();
   textarea.select();
+  textarea.setSelectionRange(0, text.length);
   try {
     return document.execCommand("copy");
   } catch {
@@ -233,7 +245,7 @@ async function copyTextToClipboard(text) {
 }
 
 async function copyInviteUrlWithGesture(urlPromise) {
-  if (!navigator.clipboard?.write || !window.ClipboardItem) {
+  if (!window.isSecureContext || !navigator.clipboard?.write || !window.ClipboardItem) {
     return false;
   }
 
@@ -272,7 +284,7 @@ async function shareInviteLink(url) {
   return copied;
 }
 
-async function fetchInviteUrl() {
+async function fetchInviteUrl({ refreshStatus = true } = {}) {
   const res = await fetch("/api/invite", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -284,14 +296,16 @@ async function fetchInviteUrl() {
     throw new Error(data.detail || "Could not create invite");
   }
 
-  await refreshUserStatus();
+  if (refreshStatus) {
+    await refreshUserStatus();
+  }
   return data.invite_url;
 }
 
 async function createAndShareInvite() {
   els.inviteFeedback.classList.add("hidden");
 
-  const inviteUrlPromise = fetchInviteUrl();
+  const inviteUrlPromise = fetchInviteUrl({ refreshStatus: false });
   const wantsNativeShare = canNativeShare({
     title: "Kinder",
     text: "Join me on Kinder to swipe baby names together!",
@@ -300,10 +314,12 @@ async function createAndShareInvite() {
 
   if (!wantsNativeShare && (await copyInviteUrlWithGesture(inviteUrlPromise))) {
     showInviteLinkFeedback(await inviteUrlPromise, true);
+    await refreshUserStatus();
     return;
   }
 
   await shareInviteLink(await inviteUrlPromise);
+  await refreshUserStatus();
 }
 
 function setActionsEnabled(enabled) {

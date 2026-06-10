@@ -471,6 +471,19 @@ body {
   color: var(--md-sys-color-primary);
 }
 
+.invite-link-input {
+  display: block;
+  width: 100%;
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: var(--md-shape-medium);
+  background: var(--md-sys-color-surface-container-low);
+  color: var(--md-sys-color-on-surface);
+  font-family: inherit;
+  font-size: 0.8125rem;
+}
+
 .text-btn {
   display: inline-flex;
   align-items: center;
