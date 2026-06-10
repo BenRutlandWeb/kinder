@@ -8,6 +8,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
+
 def data_dir() -> Path:
     if env := os.environ.get("DATA_DIR"):
         return Path(env)
@@ -19,7 +20,6 @@ def data_dir() -> Path:
 
 DATA_DIR = data_dir()
 DB_PATH = DATA_DIR / "babynames.db"
-
 DEFAULT_SEED_FILES = (
     ("babynames1996to2024-Table_1.csv", "F"),
     ("babynames1996to2024-Table_2.csv", "M"),
@@ -100,12 +100,10 @@ def load_rows(csv_path: Path, gender: str) -> list[tuple[str, str, int]]:
                 break
         else:
             raise ValueError("Could not find header row starting with 'Name'")
-
         name_col = find_column(header, {"name"})
         rank_cols = rank_columns(header)
         if name_col is None or not rank_cols:
             raise ValueError(f"Could not find Name/Rank columns in: {header}")
-
         for values in line_reader:
             row = dict(zip(header, values))
             name = title_case_name(row.get(name_col, ""))
@@ -114,13 +112,11 @@ def load_rows(csv_path: Path, gender: str) -> list[tuple[str, str, int]]:
                 continue
             if name not in best or rank < best[name]:
                 best[name] = rank
-
     return [(name, gender, rank) for name, rank in best.items()]
 
 
 def ensure_schema(conn: sqlite3.Connection) -> None:
-    conn.executescript(
-        """
+    conn.executescript("""
         CREATE TABLE IF NOT EXISTS names (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -128,8 +124,7 @@ def ensure_schema(conn: sqlite3.Connection) -> None:
             rank INTEGER NOT NULL,
             UNIQUE (name, gender)
         );
-        """
-    )
+        """)
 
 
 def bulk_insert(conn: sqlite3.Connection, rows: list[tuple[str, str, int]]) -> int:
@@ -160,21 +155,18 @@ def seed_names_if_empty(
     """Import default CSVs when the names table is empty. Returns rows imported."""
     sample_dir = sample_dir or sample_data_dir()
     DATA_DIR.mkdir(parents=True, exist_ok=True)
-
     conn = sqlite3.connect(db_path)
     try:
         ensure_schema(conn)
         count = conn.execute("SELECT COUNT(*) FROM names").fetchone()[0]
         if count > 0:
             return 0
-
         imported = 0
         for filename, gender in seed_files:
             csv_path = sample_dir / filename
             if not csv_path.is_file():
                 raise FileNotFoundError(f"Seed CSV not found: {csv_path}")
             imported += import_csv_file(conn, csv_path, gender)
-
         conn.commit()
         return imported
     finally:
@@ -215,11 +207,9 @@ def main() -> int:
         help="Gender flag: M for boys, F for girls",
     )
     args = parser.parse_args()
-
     if not args.csv_path.is_file():
         print(f"Error: file not found: {args.csv_path}", file=sys.stderr)
         return 1
-
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     try:
@@ -232,7 +222,6 @@ def main() -> int:
         conn.commit()
     finally:
         conn.close()
-
     print(f"Imported {count} unique names ({args.gender}) into {DB_PATH}")
     return 0
 
