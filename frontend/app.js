@@ -274,7 +274,6 @@ function switchTab(tab) {
   if (tab === "picks") {
     loadPicks();
     loadSentRecommendations();
-    if (state.linked) loadMatches();
   }
   if (tab === "matches") loadMatches();
 }
@@ -644,6 +643,50 @@ function renderNameList(container, names, nameClass) {
   }
 }
 
+function renderPicksList(container, names) {
+  container.innerHTML = "";
+  for (const item of names) {
+    const li = document.createElement("li");
+    li.className = item.gender === "M" ? "boy" : "girl";
+
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "pick-name";
+    nameSpan.textContent = item.name;
+    li.appendChild(nameSpan);
+
+    if (isNameMatched(item.name)) {
+      const matched = document.createElement("span");
+      matched.className = "pick-matched-icon";
+      matched.setAttribute("title", "Matched with your partner");
+      matched.setAttribute("aria-label", `${item.name} — matched with your partner`);
+      matched.innerHTML =
+        '<span class="material-symbols-rounded filled" aria-hidden="true">thumbs_up_double</span>';
+      li.appendChild(matched);
+    } else {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "pick-delete-btn";
+      btn.dataset.name = item.name;
+      btn.setAttribute("aria-label", `Remove ${item.name} from picks`);
+      btn.innerHTML =
+        '<span class="material-symbols-rounded" aria-hidden="true">delete</span>';
+      li.appendChild(btn);
+    }
+
+    container.appendChild(li);
+  }
+}
+
+function renderPicksColumns({ boys, girls }, lists, emptyEls) {
+  renderPicksList(lists.boys, boys);
+  renderPicksList(lists.girls, girls);
+
+  lists.boys.classList.toggle("hidden", boys.length === 0);
+  lists.girls.classList.toggle("hidden", girls.length === 0);
+  emptyEls.boys.classList.toggle("hidden", boys.length > 0);
+  emptyEls.girls.classList.toggle("hidden", girls.length > 0);
+}
+
 function renderGenderColumns({ boys, girls }, lists, emptyEls, nameClass) {
   renderNameList(lists.boys, boys, nameClass);
   renderNameList(lists.girls, girls, nameClass);
@@ -652,6 +695,39 @@ function renderGenderColumns({ boys, girls }, lists, emptyEls, nameClass) {
   lists.girls.classList.toggle("hidden", girls.length === 0);
   emptyEls.boys.classList.toggle("hidden", boys.length > 0);
   emptyEls.girls.classList.toggle("hidden", girls.length > 0);
+}
+
+async function removePick(name) {
+  if (!state.userId || !name) return;
+
+  const confirmed = await showConfirmDialog({
+    title: "Remove pick?",
+    message: `"${name}" will be removed from your picks and may show up in your deck again.`,
+    confirmLabel: "Remove",
+    danger: true,
+  });
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch("/api/remove-pick", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: state.userId, name }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const detail = err.detail;
+      throw new Error(typeof detail === "string" ? detail : "Could not remove pick");
+    }
+
+    const refresh = [loadPicks(), fetchNextName()];
+    if (state.linked) refresh.push(loadMatches());
+    await Promise.all(refresh);
+  } catch (err) {
+    alert(err.message);
+    await loadPicks();
+  }
 }
 
 async function clearPicks() {
@@ -870,6 +946,7 @@ async function loadPicks() {
   if (!state.userId) return;
 
   updateRecommendUI();
+  if (state.linked) await loadMatches();
 
   const res = await fetch(`/api/likes?user_id=${state.userId}`);
   if (!res.ok) return;
@@ -883,11 +960,10 @@ async function loadPicks() {
   els.clearPicksBtn.disabled = !hasPicks;
 
   if (hasPicks) {
-    renderGenderColumns(
+    renderPicksColumns(
       { boys, girls },
       { boys: els.picksBoysList, girls: els.picksGirlsList },
-      { boys: els.noPicksBoys, girls: els.noPicksGirls },
-      "pick-name"
+      { boys: els.noPicksBoys, girls: els.noPicksGirls }
     );
   }
 }
@@ -1232,6 +1308,13 @@ els.surnameInput.addEventListener("blur", async () => {
 });
 
 els.signOutBtn?.addEventListener("click", showSignIn);
+
+els.picksColumns?.addEventListener("click", (event) => {
+  const deleteBtn = event.target.closest(".pick-delete-btn");
+  if (!deleteBtn?.dataset.name) return;
+  event.preventDefault();
+  void removePick(deleteBtn.dataset.name);
+});
 
 els.settingsActions?.addEventListener("click", (event) => {
   const deleteBtn = event.target.closest("#delete-account-btn");

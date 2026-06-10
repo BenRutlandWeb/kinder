@@ -118,6 +118,16 @@ class RecommendRequest(BaseModel):
         return value.strip().title()
 
 
+class RemovePickRequest(BaseModel):
+    user_id: int = Field(..., ge=1)
+    name: str = Field(..., min_length=1, max_length=100)
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        return value.strip()
+
+
 async def _recommender_already_sent(db, recommender_id: int, name: str) -> bool:
     cursor = await db.execute(
         """
@@ -722,6 +732,47 @@ async def clear_picks(body: UnlinkRequest):
         )
         await db.commit()
         return {"ok": True, "deleted": deleted}
+    finally:
+        await db.close()
+
+
+@app.post("/api/remove-pick")
+async def remove_pick(body: RemovePickRequest):
+    db = await get_db()
+    try:
+        user = await _get_user_row(db, body.user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        partner_id = user["partner_id"]
+        if partner_id is not None:
+            if await _name_already_matched(db, body.user_id, partner_id, body.name):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Cannot remove a name you've already matched on",
+                )
+        cursor = await db.execute(
+            """
+            DELETE FROM swipes
+            WHERE user_id = ? AND status = 1
+              AND name_id IN (
+                SELECT id FROM names WHERE name = ? COLLATE NOCASE
+              )
+            """,
+            (body.user_id, body.name),
+        )
+        swipe_deleted = cursor.rowcount
+        cursor = await db.execute(
+            """
+            DELETE FROM user_custom_picks
+            WHERE user_id = ? AND name = ? COLLATE NOCASE
+            """,
+            (body.user_id, body.name),
+        )
+        custom_deleted = cursor.rowcount
+        if swipe_deleted == 0 and custom_deleted == 0:
+            raise HTTPException(status_code=404, detail="Pick not found")
+        await db.commit()
+        return {"ok": True}
     finally:
         await db.close()
 
