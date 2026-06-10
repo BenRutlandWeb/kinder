@@ -336,6 +336,80 @@ body {
   cursor: not-allowed;
 }
 
+.confirm-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+.confirm-dialog-scrim {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--md-sys-color-inverse-surface) 32%, transparent);
+}
+
+.confirm-dialog-panel {
+  position: relative;
+  width: min(100%, 20rem);
+  padding: 1.5rem;
+  border-radius: var(--md-shape-xl);
+  background: var(--md-sys-color-surface-container-high);
+  box-shadow: var(--md-elevation-3);
+}
+
+.confirm-dialog-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.75rem;
+  color: var(--md-sys-color-on-surface);
+}
+
+.confirm-dialog-message {
+  margin: 0 0 1.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.confirm-dialog-btn {
+  min-height: 40px;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-radius: var(--md-shape-full);
+  background: transparent;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--md-sys-color-primary);
+  cursor: pointer;
+}
+
+.confirm-dialog-btn-primary {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+  padding-inline: 1rem;
+}
+
+.confirm-dialog-btn-danger {
+  background: var(--md-sys-color-error);
+  color: var(--md-sys-color-on-error);
+}
+
+.confirm-dialog-btn:active {
+  opacity: 0.88;
+}
+
 /* Sign-in screens */
 .sign-in-screen {
   min-height: 100dvh;

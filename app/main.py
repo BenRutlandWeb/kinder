@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from app.database import get_db, init_db
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
-BASE_URL = os.environ.get("BASE_URL", "http://localhost:9000")
+BASE_URL = os.environ.get("BASE_URL", "http://localhost:8487")
 
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -572,6 +572,69 @@ async def swipe(body: SwipeRequest):
                 """,
                 (body.user_id, body.name_id, body.status),
             )
+        await db.commit()
+        return {"ok": True}
+    finally:
+        await db.close()
+
+
+@app.post("/api/delete-account")
+async def delete_account(body: UnlinkRequest):
+    db = await get_db()
+    try:
+        user = await _get_user_row(db, body.user_id)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        partner_id = user["partner_id"]
+        if partner_id is not None:
+            await db.execute(
+                "UPDATE users SET partner_id = NULL WHERE id = ?",
+                (partner_id,),
+            )
+
+        await db.execute(
+            """
+            DELETE FROM custom_swipes
+            WHERE custom_recommendation_id IN (
+                SELECT id FROM custom_recommendations
+                WHERE recipient_id = ? OR recommender_id = ?
+            )
+            """,
+            (body.user_id, body.user_id),
+        )
+        await db.execute(
+            """
+            DELETE FROM custom_recommendations
+            WHERE recipient_id = ? OR recommender_id = ?
+            """,
+            (body.user_id, body.user_id),
+        )
+        await db.execute(
+            "DELETE FROM custom_swipes WHERE user_id = ?",
+            (body.user_id,),
+        )
+        await db.execute(
+            """
+            DELETE FROM recommendations
+            WHERE recipient_id = ? OR recommender_id = ?
+            """,
+            (body.user_id, body.user_id),
+        )
+        await db.execute("DELETE FROM swipes WHERE user_id = ?", (body.user_id,))
+        await db.execute(
+            "DELETE FROM user_custom_picks WHERE user_id = ?",
+            (body.user_id,),
+        )
+        await db.execute(
+            "DELETE FROM invites WHERE inviter_id = ?",
+            (body.user_id,),
+        )
+        await db.execute(
+            "UPDATE users SET partner_id = NULL WHERE partner_id = ?",
+            (body.user_id,),
+        )
+        await db.execute("DELETE FROM users WHERE id = ?", (body.user_id,))
         await db.commit()
         return {"ok": True}
     finally:

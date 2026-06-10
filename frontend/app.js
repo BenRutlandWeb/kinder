@@ -69,6 +69,12 @@ const els = {
   noPicksGirls: document.getElementById("no-picks-girls"),
   noPicks: document.getElementById("no-picks"),
   clearPicksBtn: document.getElementById("clear-picks-btn"),
+  deleteAccountBtn: document.getElementById("delete-account-btn"),
+  confirmDialog: document.getElementById("confirm-dialog"),
+  confirmDialogTitle: document.getElementById("confirm-dialog-title"),
+  confirmDialogMessage: document.getElementById("confirm-dialog-message"),
+  confirmDialogCancel: document.getElementById("confirm-dialog-cancel"),
+  confirmDialogConfirm: document.getElementById("confirm-dialog-confirm"),
   recommendSection: document.getElementById("recommend-section"),
   recommendHeading: document.getElementById("recommend-heading"),
   recommendHint: document.getElementById("recommend-hint"),
@@ -97,6 +103,34 @@ const els = {
     settings: document.getElementById("nav-settings"),
   },
 };
+
+let confirmResolve = null;
+
+function showConfirmDialog({ title, message, confirmLabel = "Confirm", danger = false }) {
+  return new Promise((resolve) => {
+    confirmResolve = resolve;
+    els.confirmDialogTitle.textContent = title;
+    els.confirmDialogMessage.textContent = message;
+    els.confirmDialogConfirm.textContent = confirmLabel;
+    els.confirmDialogConfirm.classList.toggle("confirm-dialog-btn-danger", danger);
+    els.confirmDialogConfirm.classList.toggle("confirm-dialog-btn-primary", !danger);
+    els.confirmDialog.classList.remove("hidden");
+    els.confirmDialogConfirm.focus();
+  });
+}
+
+function closeConfirmDialog(result) {
+  els.confirmDialog.classList.add("hidden");
+  if (confirmResolve) {
+    confirmResolve(result);
+    confirmResolve = null;
+  }
+}
+
+function clearLocalUserData() {
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(SURNAME_STORAGE_KEY);
+}
 
 function getInviteTokenFromUrl() {
   const params = new URLSearchParams(window.location.search);
@@ -506,7 +540,13 @@ function renderGenderColumns({ boys, girls }, lists, emptyEls, nameClass, rankCl
 async function clearPicks() {
   if (!state.userId) return;
 
-  if (!confirm("Clear all your picks? Liked names will show up in your deck again.")) return;
+  const confirmed = await showConfirmDialog({
+    title: "Clear picks?",
+    message: "All names you liked will show up in your deck again. This cannot be undone.",
+    confirmLabel: "Clear picks",
+    danger: true,
+  });
+  if (!confirmed) return;
 
   els.clearPicksBtn.disabled = true;
 
@@ -791,6 +831,41 @@ function showApp() {
   Promise.all(initLoads).catch(() => alert("Failed to load names."));
 }
 
+async function deleteAccount() {
+  if (!state.userId) return;
+
+  const confirmed = await showConfirmDialog({
+    title: "Delete account?",
+    message:
+      "This permanently deletes your account, picks, and partner link. Your partner will be unlinked but their account stays. Your saved sign-in and settings will be cleared from this browser.",
+    confirmLabel: "Delete account",
+    danger: true,
+  });
+  if (!confirmed) return;
+
+  els.deleteAccountBtn.disabled = true;
+
+  try {
+    const res = await fetch("/api/delete-account", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: state.userId }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      const detail = err.detail;
+      throw new Error(typeof detail === "string" ? detail : "Could not delete account");
+    }
+
+    clearLocalUserData();
+    showSignIn();
+  } catch (err) {
+    alert(err.message);
+    els.deleteAccountBtn.disabled = false;
+  }
+}
+
 function showSignIn() {
   hideAllScreens();
   els.signInScreen.classList.remove("hidden");
@@ -801,10 +876,13 @@ function showSignIn() {
   state.partnerName = null;
   state.pendingInviteUrl = null;
   state.currentName = null;
-  localStorage.removeItem(STORAGE_KEY);
+  clearLocalUserData();
   els.signInError.classList.add("hidden");
   els.emailInput.value = "";
   els.displayNameInput.value = "";
+  els.surnameInput.value = "";
+  state.surname = "";
+  els.deleteAccountBtn.disabled = false;
 }
 
 async function showInviteScreen(token) {
@@ -1021,6 +1099,16 @@ els.surnameInput.addEventListener("input", () => {
 
 els.signOutBtn.addEventListener("click", showSignIn);
 els.clearPicksBtn.addEventListener("click", clearPicks);
+els.deleteAccountBtn.addEventListener("click", deleteAccount);
+
+els.confirmDialogCancel.addEventListener("click", () => closeConfirmDialog(false));
+els.confirmDialogConfirm.addEventListener("click", () => closeConfirmDialog(true));
+els.confirmDialog.querySelector("[data-confirm-dismiss]").addEventListener("click", () =>
+  closeConfirmDialog(false)
+);
+els.confirmDialog.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeConfirmDialog(false);
+});
 
 els.recommendForm.addEventListener("submit", submitRecommendation);
 
