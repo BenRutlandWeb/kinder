@@ -1,5 +1,4 @@
 const STORAGE_KEY = "babynames-user";
-const SURNAME_STORAGE_KEY = "babynames-surname";
 const ASSET_VERSION =
   document.querySelector('meta[name="kinder-asset-version"]')?.content || "12";
 const STALE_RELOAD_KEY = "kinder-stale-reload";
@@ -18,8 +17,11 @@ const state = {
   inviteToken: null,
   activeTab: "home",
   searchTimer: null,
+  surnameSaveTimer: null,
   matchedNames: new Set(),
 };
+
+let lastSavedSurname = "";
 
 const SWIPE_THRESHOLD = 80;
 const STATUS_YES = 1;
@@ -203,7 +205,6 @@ function closeConfirmDialog(result) {
 
 function clearLocalUserData() {
   localStorage.removeItem(STORAGE_KEY);
-  localStorage.removeItem(SURNAME_STORAGE_KEY);
 }
 
 function getInviteTokenFromUrl() {
@@ -231,6 +232,27 @@ function applyUserStatus(user) {
   if (els.displayNameInput) {
     els.displayNameInput.value = user.name;
   }
+  state.surname = user.surname || "";
+  lastSavedSurname = state.surname;
+  if (els.surnameInput) {
+    els.surnameInput.value = state.surname;
+  }
+  maybeMigrateLegacySurname();
+}
+
+function maybeMigrateLegacySurname() {
+  const legacy = localStorage.getItem("babynames-surname");
+  if (!legacy || !state.userId || state.surname) {
+    if (legacy) localStorage.removeItem("babynames-surname");
+    return;
+  }
+  localStorage.removeItem("babynames-surname");
+  state.surname = legacy.trim();
+  lastSavedSurname = "";
+  if (els.surnameInput) {
+    els.surnameInput.value = state.surname;
+  }
+  scheduleSurnameSave(state.surname);
 }
 
 function switchTab(tab) {
@@ -442,19 +464,43 @@ function resetCardTransform() {
   els.card.classList.remove("dragging");
 }
 
-function loadSurname() {
-  const saved = localStorage.getItem(SURNAME_STORAGE_KEY);
-  state.surname = saved || "";
-  els.surnameInput.value = state.surname;
+function setSurnameLocal(value) {
+  state.surname = value.trim();
 }
 
-function saveSurname(value) {
-  state.surname = value.trim();
-  if (state.surname) {
-    localStorage.setItem(SURNAME_STORAGE_KEY, state.surname);
-  } else {
-    localStorage.removeItem(SURNAME_STORAGE_KEY);
+async function saveSurnameToServer(value) {
+  const surname = value.trim();
+  if (!state.userId || surname === lastSavedSurname) return;
+
+  const res = await fetch("/api/me/surname", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: state.userId, surname }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Could not update surname");
   }
+
+  const user = await res.json();
+  lastSavedSurname = surname;
+  applyUserStatus(user);
+}
+
+function scheduleSurnameSave(value) {
+  if (state.surnameSaveTimer) {
+    clearTimeout(state.surnameSaveTimer);
+  }
+  state.surnameSaveTimer = setTimeout(() => {
+    state.surnameSaveTimer = null;
+    saveSurnameToServer(value).catch((err) => {
+      if (els.surnameInput) {
+        els.surnameInput.value = state.surname;
+      }
+      alert(err.message);
+    });
+  }, 500);
 }
 
 async function saveDisplayName(value) {
@@ -950,6 +996,7 @@ function showSignIn() {
   els.displayNameInput.value = "";
   els.surnameInput.value = "";
   state.surname = "";
+  lastSavedSurname = "";
   if (els.deleteAccountBtn) els.deleteAccountBtn.disabled = false;
 }
 
@@ -1159,9 +1206,23 @@ els.displayNameInput.addEventListener("keydown", (e) => {
 });
 
 els.surnameInput.addEventListener("input", () => {
-  saveSurname(els.surnameInput.value);
+  setSurnameLocal(els.surnameInput.value);
+  scheduleSurnameSave(els.surnameInput.value);
   if (state.currentName && !els.card.classList.contains("hidden")) {
     updateCardSurname();
+  }
+});
+
+els.surnameInput.addEventListener("blur", async () => {
+  if (state.surnameSaveTimer) {
+    clearTimeout(state.surnameSaveTimer);
+    state.surnameSaveTimer = null;
+  }
+  try {
+    await saveSurnameToServer(els.surnameInput.value);
+  } catch (err) {
+    els.surnameInput.value = state.surname;
+    alert(err.message);
   }
 });
 
@@ -1221,8 +1282,6 @@ for (const radio of els.recommendForm.querySelectorAll('input[name="recommend-ge
 els.dislikeBtn.addEventListener("click", () => recordSwipe(STATUS_NO));
 els.likeBtn.addEventListener("click", () => recordSwipe(STATUS_YES));
 async function init() {
-  loadSurname();
-
   const inviteToken = getInviteTokenFromUrl();
   if (inviteToken) {
     await showInviteScreen(inviteToken);

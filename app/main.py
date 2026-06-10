@@ -89,6 +89,16 @@ class UpdateNameRequest(BaseModel):
         return value.strip()
 
 
+class UpdateSurnameRequest(BaseModel):
+    user_id: int = Field(..., ge=1)
+    surname: str = Field("", max_length=100)
+
+    @field_validator("surname")
+    @classmethod
+    def normalize_surname(cls, value: str) -> str:
+        return value.strip()
+
+
 class CreateInviteRequest(BaseModel):
     user_id: int = Field(..., ge=1)
 
@@ -211,9 +221,12 @@ def _display_name(row) -> str:
     return name if name else row["email"]
 
 
+_USER_COLUMNS = "id, email, name, partner_id, surname"
+
+
 async def _get_user_row(db, user_id: int):
     cursor = await db.execute(
-        "SELECT id, email, name, partner_id FROM users WHERE id = ?", (user_id,)
+        f"SELECT {_USER_COLUMNS} FROM users WHERE id = ?", (user_id,)
     )
     return await cursor.fetchone()
 
@@ -247,6 +260,7 @@ async def _user_status(db, user_row) -> dict:
         "id": user_row["id"],
         "email": user_row["email"],
         "name": user_row["name"] or "",
+        "surname": user_row["surname"] or "",
         "linked": user_row["partner_id"] is not None,
         "partner_name": partner_name,
         "pending_invite_url": pending_invite_url,
@@ -258,7 +272,7 @@ async def auth(body: EmailRequest):
     db = await get_db()
     try:
         cursor = await db.execute(
-            "SELECT id, email, name, partner_id FROM users WHERE email = ?",
+            f"SELECT {_USER_COLUMNS} FROM users WHERE email = ?",
             (body.email,),
         )
         row = await cursor.fetchone()
@@ -269,7 +283,7 @@ async def auth(body: EmailRequest):
             )
             await db.commit()
             cursor = await db.execute(
-                "SELECT id, email, name, partner_id FROM users WHERE email = ?",
+                f"SELECT {_USER_COLUMNS} FROM users WHERE email = ?",
                 (body.email,),
             )
             row = await cursor.fetchone()
@@ -301,11 +315,24 @@ async def update_name(body: UpdateNameRequest):
             "UPDATE users SET name = ? WHERE id = ?", (body.name, body.user_id)
         )
         await db.commit()
-        cursor = await db.execute(
-            "SELECT id, email, name, partner_id FROM users WHERE id = ?",
-            (body.user_id,),
+        row = await _get_user_row(db, body.user_id)
+        return await _user_status(db, row)
+    finally:
+        await db.close()
+
+
+@app.post("/api/me/surname")
+async def update_surname(body: UpdateSurnameRequest):
+    db = await get_db()
+    try:
+        row = await _get_user_row(db, body.user_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        await db.execute(
+            "UPDATE users SET surname = ? WHERE id = ?", (body.surname, body.user_id)
         )
-        row = await cursor.fetchone()
+        await db.commit()
+        row = await _get_user_row(db, body.user_id)
         return await _user_status(db, row)
     finally:
         await db.close()
@@ -384,7 +411,7 @@ async def accept_invite(token: str, body: InviteAcceptRequest):
                 status_code=400, detail="Inviter is already linked with someone"
             )
         cursor = await db.execute(
-            "SELECT id, email, name, partner_id FROM users WHERE email = ?",
+            f"SELECT {_USER_COLUMNS} FROM users WHERE email = ?",
             (body.email,),
         )
         invitee = await cursor.fetchone()
@@ -395,7 +422,7 @@ async def accept_invite(token: str, body: InviteAcceptRequest):
             )
             await db.commit()
             cursor = await db.execute(
-                "SELECT id, email, name, partner_id FROM users WHERE email = ?",
+                f"SELECT {_USER_COLUMNS} FROM users WHERE email = ?",
                 (body.email,),
             )
             invitee = await cursor.fetchone()
@@ -408,11 +435,7 @@ async def accept_invite(token: str, body: InviteAcceptRequest):
                 "UPDATE users SET name = ? WHERE id = ?", (body.name, invitee["id"])
             )
             await db.commit()
-            cursor = await db.execute(
-                "SELECT id, email, name, partner_id FROM users WHERE id = ?",
-                (invitee["id"],),
-            )
-            invitee = await cursor.fetchone()
+            invitee = await _get_user_row(db, invitee["id"])
         if invitee["id"] == invite["inviter_id"]:
             raise HTTPException(status_code=400, detail="Cannot link with yourself")
         await db.execute(
@@ -432,11 +455,7 @@ async def accept_invite(token: str, body: InviteAcceptRequest):
             (invite["inviter_id"], invite["id"]),
         )
         await db.commit()
-        cursor = await db.execute(
-            "SELECT id, email, name, partner_id FROM users WHERE id = ?",
-            (invitee["id"],),
-        )
-        row = await cursor.fetchone()
+        row = await _get_user_row(db, invitee["id"])
         return await _user_status(db, row)
     finally:
         await db.close()
@@ -509,10 +528,22 @@ async def next_name(user_id: int = Query(..., ge=1)):
               AND n.id NOT IN (
                   SELECT s.name_id FROM swipes s WHERE s.user_id = ?
               )
+            UNION ALL
+            SELECT 'db' AS source, n.id AS id, n.name AS name,
+                   n.gender AS gender, n.rank AS rank, ps.created_at
+            FROM users u
+            INNER JOIN swipes ps
+                ON ps.user_id = u.partner_id AND ps.status = 1
+            INNER JOIN names n ON n.id = ps.name_id
+            WHERE u.id = ?
+              AND u.partner_id IS NOT NULL
+              AND n.id NOT IN (
+                  SELECT s.name_id FROM swipes s WHERE s.user_id = ?
+              )
             ORDER BY created_at DESC
             LIMIT 1
             """,
-            (user_id, user_id, user_id, user_id),
+            (user_id, user_id, user_id, user_id, user_id, user_id),
         )
         row = await cursor.fetchone()
         if row is None:

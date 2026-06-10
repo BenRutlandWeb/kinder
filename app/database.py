@@ -33,6 +33,16 @@ async def _migrate_custom_recommendations_table(db: aiosqlite.Connection) -> Non
         )
 
 
+async def _migrate_swipes_created_at(db: aiosqlite.Connection) -> None:
+    cursor = await db.execute("PRAGMA table_info(swipes)")
+    cols = {row[1] for row in await cursor.fetchall()}
+    if "created_at" not in cols:
+        await db.execute("ALTER TABLE swipes ADD COLUMN created_at TEXT")
+        await db.execute(
+            "UPDATE swipes SET created_at = datetime('now') WHERE created_at IS NULL"
+        )
+
+
 async def _migrate_users_table(db: aiosqlite.Connection) -> None:
     cursor = await db.execute("PRAGMA table_info(users)")
     cols = {row[1] for row in await cursor.fetchall()}
@@ -42,7 +52,8 @@ async def _migrate_users_table(db: aiosqlite.Connection) -> None:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 email TEXT NOT NULL UNIQUE,
                 name TEXT,
-                partner_id INTEGER REFERENCES users(id)
+                partner_id INTEGER REFERENCES users(id),
+                surname TEXT
             )
             """)
         return
@@ -58,6 +69,10 @@ async def _migrate_users_table(db: aiosqlite.Connection) -> None:
     cols = {row[1] for row in await cursor.fetchall()}
     if "name" not in cols:
         await db.execute("ALTER TABLE users ADD COLUMN name TEXT")
+    cursor = await db.execute("PRAGMA table_info(users)")
+    cols = {row[1] for row in await cursor.fetchall()}
+    if "surname" not in cols:
+        await db.execute("ALTER TABLE users ADD COLUMN surname TEXT")
 
 
 async def _seed_names_if_empty() -> int:
@@ -88,6 +103,7 @@ async def init_db() -> None:
                 user_id INTEGER NOT NULL,
                 name_id INTEGER NOT NULL,
                 status INTEGER NOT NULL CHECK (status IN (1, 2)),
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
                 PRIMARY KEY (user_id, name_id),
                 FOREIGN KEY (user_id) REFERENCES users(id),
                 FOREIGN KEY (name_id) REFERENCES names(id)
@@ -155,6 +171,7 @@ async def init_db() -> None:
             """)
         await _migrate_users_table(db)
         await _migrate_custom_recommendations_table(db)
+        await _migrate_swipes_created_at(db)
         await db.commit()
     imported = await _seed_names_if_empty()
     if imported:
