@@ -1,4 +1,4 @@
-const CACHE_NAME = "kinder-v16";
+const CACHE_NAME = "kinder-v17";
 
 const PRECACHE = [
   "/icons/logo.svg",
@@ -16,6 +16,7 @@ const NETWORK_FIRST = new Set([
   "/index.html",
   "/style.css",
   "/app.js",
+  "/qrcode.js",
 ]);
 
 function shouldNeverCache(pathname) {

@@ -575,6 +575,61 @@ body {
   width: 100%;
 }
 
+.invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.invite-actions-stacked {
+  flex-direction: column;
+}
+
+.invite-qr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  width: 100%;
+  background: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+
+.invite-qr-dialog {
+  width: min(100% - 3rem, 22rem);
+}
+
+.invite-qr-dialog-panel {
+  width: min(100%, 22rem);
+}
+
+.invite-qr-container {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 1.25rem;
+  padding: 0.75rem;
+  border-radius: var(--md-shape-medium);
+  background: #ffffff;
+}
+
+.invite-qr-container svg {
+  display: block;
+  width: min(100%, 220px);
+  height: auto;
+}
+
+.invite-qr-loading {
+  margin: 0 0 1.25rem;
+  font-size: 0.875rem;
+  text-align: center;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.invite-qr-loading.hidden {
+  display: none;
+}
+
 .partner-prompt {
   margin: 0 0 0.75rem;
   font-size: 0.875rem;

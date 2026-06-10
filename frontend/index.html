@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-title" content="Kinder" />
   <meta name="theme-color" content="#fff8f7" />
   <meta name="description" content="Swipe baby names with your partner and find matches you both love." />
-  <meta name="kinder-asset-version" content="16" />
+  <meta name="kinder-asset-version" content="17" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Kinder</title>
   <style>
@@ -25,7 +25,7 @@
   <link rel="icon" href="/icons/favicon-32.png" type="image/png" sizes="32x32" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="manifest" href="/manifest.webmanifest" />
-  <link rel="stylesheet" href="/style.css?v=15" />
+  <link rel="stylesheet" href="/style.css?v=16" />
 </head>
 <body>
   <section id="sign-in-screen" class="sign-in-screen">
@@ -294,17 +294,29 @@
             </div>
             <div id="partner-pending" class="partner-status hidden">
               <span>Waiting for your partner to accept</span>
-              <button type="button" id="reshare-btn" class="invite-btn">
-                <span class="material-symbols-rounded" aria-hidden="true">share</span>
-                Share link again
-              </button>
+              <div class="invite-actions">
+                <button type="button" id="reshare-btn" class="invite-btn">
+                  <span class="material-symbols-rounded" aria-hidden="true">share</span>
+                  Share link again
+                </button>
+                <button type="button" class="invite-btn show-invite-qr-btn">
+                  <span class="material-symbols-rounded" aria-hidden="true">qr_code_2</span>
+                  Show QR code
+                </button>
+              </div>
             </div>
             <div id="invite-partner-section" class="invite-partner-form hidden">
               <p class="partner-prompt">Invite your partner to see matches</p>
-              <button type="button" id="share-invite-btn" class="sign-in-btn share-invite-btn">
-                <span class="material-symbols-rounded" aria-hidden="true">share</span>
-                Share invite link
-              </button>
+              <div class="invite-actions invite-actions-stacked">
+                <button type="button" id="share-invite-btn" class="sign-in-btn share-invite-btn">
+                  <span class="material-symbols-rounded" aria-hidden="true">share</span>
+                  Share invite link
+                </button>
+                <button type="button" class="sign-in-btn invite-qr-btn show-invite-qr-btn">
+                  <span class="material-symbols-rounded" aria-hidden="true">qr_code_2</span>
+                  Show QR code
+                </button>
+              </div>
             </div>
             <p id="invite-feedback" class="invite-feedback hidden"></p>
           </div>
@@ -362,6 +374,20 @@
 
 
 
+  <dialog id="invite-qr-dialog" class="confirm-dialog invite-qr-dialog" aria-labelledby="invite-qr-dialog-title" aria-describedby="invite-qr-dialog-message">
+    <div class="confirm-dialog-panel invite-qr-dialog-panel">
+      <h3 id="invite-qr-dialog-title" class="confirm-dialog-title">Scan to join</h3>
+      <p id="invite-qr-dialog-message" class="confirm-dialog-message">
+        Your partner can scan this with their phone camera to open your invite.
+      </p>
+      <div id="invite-qr-container" class="invite-qr-container hidden" aria-hidden="true"></div>
+      <p id="invite-qr-loading" class="invite-qr-loading">Creating invite link…</p>
+      <div class="confirm-dialog-actions">
+        <button type="button" id="invite-qr-close" class="confirm-dialog-btn confirm-dialog-btn-primary">Close</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-message">
     <div class="confirm-dialog-panel">
       <h3 id="confirm-dialog-title" class="confirm-dialog-title"></h3>
@@ -373,7 +399,8 @@
     </div>
   </dialog>
 
-  <script src="/app.js?v=13"></script>
+  <script src="/qrcode.js"></script>
+  <script src="/app.js?v=14"></script>
 </body>
 </html>
 

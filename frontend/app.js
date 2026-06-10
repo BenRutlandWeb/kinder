@@ -52,6 +52,11 @@ const els = {
   invitePartnerSection: document.getElementById("invite-partner-section"),
   shareInviteBtn: document.getElementById("share-invite-btn"),
   reshareBtn: document.getElementById("reshare-btn"),
+  inviteQrDialog: document.getElementById("invite-qr-dialog"),
+  inviteQrContainer: document.getElementById("invite-qr-container"),
+  inviteQrLoading: document.getElementById("invite-qr-loading"),
+  inviteQrClose: document.getElementById("invite-qr-close"),
+  showInviteQrBtns: document.querySelectorAll(".show-invite-qr-btn"),
   inviteFeedback: document.getElementById("invite-feedback"),
   surnameInput: document.getElementById("surname-input"),
   card: document.getElementById("name-card"),
@@ -588,6 +593,63 @@ async function createAndShareInvite() {
 
   await shareInviteLink(await inviteUrlPromise);
   await refreshUserStatus();
+}
+
+async function resolveInviteUrl() {
+  if (state.pendingInviteUrl) {
+    return state.pendingInviteUrl;
+  }
+  return fetchInviteUrl({ refreshStatus: true });
+}
+
+function renderInviteQrCode(url) {
+  if (typeof qrcode !== "function") {
+    throw new Error("QR code library failed to load");
+  }
+
+  const qr = qrcode(0, "M");
+  qr.addData(url);
+  qr.make();
+
+  els.inviteQrContainer.innerHTML = qr.createSvgTag(5, 2);
+  const svg = els.inviteQrContainer.querySelector("svg");
+  if (svg) {
+    svg.setAttribute("role", "img");
+    svg.setAttribute("aria-label", "Invite QR code");
+  }
+}
+
+function closeInviteQrDialog() {
+  if (els.inviteQrDialog?.open) {
+    els.inviteQrDialog.close();
+  }
+  els.inviteQrContainer.innerHTML = "";
+  els.inviteQrContainer.classList.add("hidden");
+  els.inviteQrLoading.classList.remove("hidden");
+}
+
+async function showInviteQrDialog() {
+  if (!els.inviteQrDialog || typeof els.inviteQrDialog.showModal !== "function") {
+    return;
+  }
+
+  els.inviteFeedback.classList.add("hidden");
+  els.inviteQrContainer.innerHTML = "";
+  els.inviteQrContainer.classList.add("hidden");
+  els.inviteQrLoading.classList.remove("hidden");
+  els.inviteQrDialog.showModal();
+
+  try {
+    const url = await resolveInviteUrl();
+    renderInviteQrCode(url);
+    els.inviteQrLoading.classList.add("hidden");
+    els.inviteQrContainer.classList.remove("hidden");
+    els.inviteQrContainer.setAttribute("aria-hidden", "false");
+  } catch (err) {
+    closeInviteQrDialog();
+    els.inviteFeedback.textContent = err.message;
+    els.inviteFeedback.classList.remove("hidden");
+  }
 }
 
 function setActionsEnabled(enabled) {
@@ -1324,6 +1386,23 @@ els.reshareBtn.addEventListener("click", async () => {
   els.inviteFeedback.classList.add("hidden");
   if (state.pendingInviteUrl) {
     await shareInviteLink(state.pendingInviteUrl);
+  }
+});
+
+els.showInviteQrBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    void showInviteQrDialog();
+  });
+});
+
+els.inviteQrClose?.addEventListener("click", closeInviteQrDialog);
+els.inviteQrDialog?.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeInviteQrDialog();
+});
+els.inviteQrDialog?.addEventListener("click", (event) => {
+  if (event.target === els.inviteQrDialog) {
+    closeInviteQrDialog();
   }
 });
 
