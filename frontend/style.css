@@ -296,6 +296,7 @@ body {
   gap: 0.75rem;
   margin-top: auto;
   padding-top: 1.5rem;
+  padding-bottom: 0.5rem;
   border-top: 1px solid var(--md-sys-color-outline-variant);
 }
 
@@ -337,18 +338,15 @@ body {
 }
 
 .confirm-dialog {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 1.5rem;
+  width: min(100% - 3rem, 20rem);
+  max-width: calc(100% - 3rem);
+  margin: auto;
+  padding: 0;
+  border: none;
+  background: transparent;
 }
 
-.confirm-dialog-scrim {
-  position: absolute;
-  inset: 0;
+.confirm-dialog::backdrop {
   background: color-mix(in srgb, var(--md-sys-color-inverse-surface) 32%, transparent);
 }
 
@@ -479,16 +477,6 @@ body {
   color: var(--md-sys-color-on-surface-variant);
 }
 
-.partner-section {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  color: var(--md-sys-color-on-surface-variant);
-  background: color-mix(in srgb, #ffffff 70%, transparent);
-  border: 1px solid color-mix(in srgb, var(--md-sys-color-outline-variant) 50%, transparent);
-  border-radius: var(--md-shape-lg);
-  padding: 1rem;
-}
-
 .partner-status {
   display: flex;
   flex-direction: column;
@@ -505,7 +493,7 @@ body {
 }
 
 .partner-prompt {
-  margin: 0 0 0.75rem;
+  margin: 0;
   font-size: 0.875rem;
   color: var(--md-sys-color-on-surface-variant);
 }
@@ -612,6 +600,26 @@ body {
   background: color-mix(in srgb, #ffffff 78%, transparent);
   border: 1px solid color-mix(in srgb, var(--girl-bg-deep) 35%, var(--boy-bg-deep));
   box-shadow: 0 4px 16px color-mix(in srgb, var(--md-sys-color-primary) 8%, transparent);
+}
+
+.surname-field-group {
+  gap: 1rem;
+}
+
+.surname-field-group .settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+#partner-section {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+#partner-section > .surname-label {
+  margin: 0;
 }
 
 .surname-label {

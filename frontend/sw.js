@@ -1,4 +1,4 @@
-const CACHE_NAME = "kinder-v9";
+const CACHE_NAME = "kinder-v10";
 const PRECACHE = [
   "/",
   "/index.html",

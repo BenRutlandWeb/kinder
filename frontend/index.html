@@ -202,29 +202,32 @@
       <section id="tab-settings" class="tab-panel hidden" role="tabpanel" aria-label="Settings">
         <div class="tab-panel-inner settings-section">
           <h2 class="tab-panel-heading">Settings</h2>
-          <div class="surname-field">
-            <label for="display-name-input" class="surname-label">Your name</label>
-            <input
-              type="text"
-              id="display-name-input"
-              class="surname-input"
-              placeholder="How you appear to your partner"
-              autocomplete="name"
-              maxlength="100"
-            />
+          <div class="surname-field surname-field-group">
+            <div class="settings-field">
+              <label for="display-name-input" class="surname-label">Your name</label>
+              <input
+                type="text"
+                id="display-name-input"
+                class="surname-input"
+                placeholder="How you appear to your partner"
+                autocomplete="name"
+                maxlength="100"
+              />
+            </div>
+            <div class="settings-field">
+              <label for="surname-input" class="surname-label">Baby's surname</label>
+              <input
+                type="text"
+                id="surname-input"
+                class="surname-input"
+                placeholder="Optional — preview on cards"
+                autocomplete="family-name"
+                maxlength="50"
+              />
+            </div>
           </div>
-          <div class="surname-field">
-            <label for="surname-input" class="surname-label">Baby's surname</label>
-            <input
-              type="text"
-              id="surname-input"
-              class="surname-input"
-              placeholder="Optional — preview on cards"
-              autocomplete="family-name"
-              maxlength="50"
-            />
-          </div>
-          <div id="partner-section" class="partner-section">
+          <div id="partner-section" class="surname-field">
+            <p class="surname-label">Partner</p>
             <div id="partner-linked" class="partner-status hidden">
               <span>Linked with <strong id="partner-name"></strong></span>
               <button type="button" id="unlink-btn" class="text-btn">Unlink</button>
@@ -299,8 +302,7 @@
 
 
 
-  <div id="confirm-dialog" class="confirm-dialog hidden" role="alertdialog" aria-modal="true" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-message">
-    <div class="confirm-dialog-scrim" data-confirm-dismiss></div>
+  <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-dialog-title" aria-describedby="confirm-dialog-message">
     <div class="confirm-dialog-panel">
       <h3 id="confirm-dialog-title" class="confirm-dialog-title"></h3>
       <p id="confirm-dialog-message" class="confirm-dialog-message"></p>
@@ -309,7 +311,7 @@
         <button type="button" id="confirm-dialog-confirm" class="confirm-dialog-btn confirm-dialog-btn-primary">Confirm</button>
       </div>
     </div>
-  </div>
+  </dialog>
 
   <script src="/app.js"></script>
 </body>

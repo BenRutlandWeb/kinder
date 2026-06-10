@@ -70,6 +70,7 @@ const els = {
   noPicks: document.getElementById("no-picks"),
   clearPicksBtn: document.getElementById("clear-picks-btn"),
   deleteAccountBtn: document.getElementById("delete-account-btn"),
+  settingsActions: document.querySelector(".settings-actions"),
   confirmDialog: document.getElementById("confirm-dialog"),
   confirmDialogTitle: document.getElementById("confirm-dialog-title"),
   confirmDialogMessage: document.getElementById("confirm-dialog-message"),
@@ -107,6 +108,8 @@ const els = {
 let confirmResolve = null;
 
 function showConfirmDialog({ title, message, confirmLabel = "Confirm", danger = false }) {
+  if (!els.confirmDialog) return Promise.resolve(false);
+
   return new Promise((resolve) => {
     confirmResolve = resolve;
     els.confirmDialogTitle.textContent = title;
@@ -114,13 +117,15 @@ function showConfirmDialog({ title, message, confirmLabel = "Confirm", danger = 
     els.confirmDialogConfirm.textContent = confirmLabel;
     els.confirmDialogConfirm.classList.toggle("confirm-dialog-btn-danger", danger);
     els.confirmDialogConfirm.classList.toggle("confirm-dialog-btn-primary", !danger);
-    els.confirmDialog.classList.remove("hidden");
+    els.confirmDialog.showModal();
     els.confirmDialogConfirm.focus();
   });
 }
 
 function closeConfirmDialog(result) {
-  els.confirmDialog.classList.add("hidden");
+  if (els.confirmDialog?.open) {
+    els.confirmDialog.close();
+  }
   if (confirmResolve) {
     confirmResolve(result);
     confirmResolve = null;
@@ -831,7 +836,7 @@ function showApp() {
   Promise.all(initLoads).catch(() => alert("Failed to load names."));
 }
 
-async function deleteAccount() {
+async function handleDeleteAccount() {
   if (!state.userId) return;
 
   const confirmed = await showConfirmDialog({
@@ -843,7 +848,7 @@ async function deleteAccount() {
   });
   if (!confirmed) return;
 
-  els.deleteAccountBtn.disabled = true;
+  if (els.deleteAccountBtn) els.deleteAccountBtn.disabled = true;
 
   try {
     const res = await fetch("/api/delete-account", {
@@ -862,7 +867,7 @@ async function deleteAccount() {
     showSignIn();
   } catch (err) {
     alert(err.message);
-    els.deleteAccountBtn.disabled = false;
+    if (els.deleteAccountBtn) els.deleteAccountBtn.disabled = false;
   }
 }
 
@@ -882,7 +887,7 @@ function showSignIn() {
   els.displayNameInput.value = "";
   els.surnameInput.value = "";
   state.surname = "";
-  els.deleteAccountBtn.disabled = false;
+  if (els.deleteAccountBtn) els.deleteAccountBtn.disabled = false;
 }
 
 async function showInviteScreen(token) {
@@ -1097,17 +1102,33 @@ els.surnameInput.addEventListener("input", () => {
   }
 });
 
-els.signOutBtn.addEventListener("click", showSignIn);
-els.clearPicksBtn.addEventListener("click", clearPicks);
-els.deleteAccountBtn.addEventListener("click", deleteAccount);
+els.signOutBtn?.addEventListener("click", showSignIn);
 
-els.confirmDialogCancel.addEventListener("click", () => closeConfirmDialog(false));
-els.confirmDialogConfirm.addEventListener("click", () => closeConfirmDialog(true));
-els.confirmDialog.querySelector("[data-confirm-dismiss]").addEventListener("click", () =>
-  closeConfirmDialog(false)
-);
-els.confirmDialog.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeConfirmDialog(false);
+els.settingsActions?.addEventListener("click", (event) => {
+  const deleteBtn = event.target.closest("#delete-account-btn");
+  if (deleteBtn) {
+    event.preventDefault();
+    void handleDeleteAccount();
+    return;
+  }
+
+  const clearBtn = event.target.closest("#clear-picks-btn");
+  if (clearBtn && !clearBtn.disabled) {
+    event.preventDefault();
+    void clearPicks();
+  }
+});
+
+els.confirmDialogCancel?.addEventListener("click", () => closeConfirmDialog(false));
+els.confirmDialogConfirm?.addEventListener("click", () => closeConfirmDialog(true));
+els.confirmDialog?.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeConfirmDialog(false);
+});
+els.confirmDialog?.addEventListener("click", (event) => {
+  if (event.target === els.confirmDialog) {
+    closeConfirmDialog(false);
+  }
 });
 
 els.recommendForm.addEventListener("submit", submitRecommendation);
