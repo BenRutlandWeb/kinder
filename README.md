@@ -18,7 +18,7 @@ A Tinder-style web app for couples to swipe on baby names and discover matches. 
 ## Quick start (Docker)
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/BenRutlandWeb/kinder
 cd kinder
 docker compose up --build
 ```
