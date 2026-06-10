@@ -2,7 +2,7 @@ services:
   babynames:
     build: .
     ports:
-      - "9000:8000"
+      - "8487:8000"
     volumes:
       - ./data:/data
       - ./sample-data:/sample-data:ro
@@ -11,7 +11,7 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       DATA_DIR: /data
-      BASE_URL: ${BASE_URL:-http://localhost:9000}
+      BASE_URL: ${BASE_URL:-http://localhost:8487}
     restart: unless-stopped
 
   import-girls:

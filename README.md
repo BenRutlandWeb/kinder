@@ -23,7 +23,7 @@ cd kinder
 docker compose up --build
 ```
 
-Open [http://localhost:9000](http://localhost:9000).
+Open [http://localhost:8487](http://localhost:8487).
 
 On first start, the app creates `data/babynames.db` and seeds it from the bundled sample CSVs in `sample-data/` if the names table is empty.
 
@@ -34,7 +34,7 @@ Configuration is via environment variables. In Docker Compose, set these under `
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DATA_DIR` | `/data` (Docker), `./data` (local) | Directory for the SQLite database (`babynames.db`) |
-| `BASE_URL` | `http://localhost:9000` | Public URL of the app, used when generating partner invite links |
+| `BASE_URL` | `http://localhost:8487` | Public URL of the app, used when generating partner invite links |
 | `SAMPLE_DATA_DIR` | `/sample-data` or `./sample-data` | Directory containing seed CSV files (import script only) |
 
 ### `BASE_URL` for production
@@ -54,11 +54,11 @@ docker compose up -d
 
 ### Port mapping
 
-The app listens on port **8000** inside the container. `docker-compose.yml` maps it to **9000** on the host:
+The app listens on port **8000** inside the container. `docker-compose.yml` maps it to **8487** on the host:
 
 ```yaml
 ports:
-  - "9000:8000"
+  - "8487:8000"
 ```
 
 Change the left side to use a different host port.
