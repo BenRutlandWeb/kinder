@@ -73,6 +73,16 @@ async def _migrate_users_table(db: aiosqlite.Connection) -> None:
     cols = {row[1] for row in await cursor.fetchall()}
     if "surname" not in cols:
         await db.execute("ALTER TABLE users ADD COLUMN surname TEXT")
+    cursor = await db.execute("PRAGMA table_info(users)")
+    cols = {row[1] for row in await cursor.fetchall()}
+    if "filter_gender" not in cols:
+        await db.execute(
+            "ALTER TABLE users ADD COLUMN filter_gender TEXT NOT NULL DEFAULT 'both'"
+        )
+    cursor = await db.execute("PRAGMA table_info(users)")
+    cols = {row[1] for row in await cursor.fetchall()}
+    if "filter_letters" not in cols:
+        await db.execute("ALTER TABLE users ADD COLUMN filter_letters TEXT")
 
 
 async def _seed_names_if_empty() -> int:

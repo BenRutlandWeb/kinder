@@ -712,6 +712,72 @@ body {
   color: var(--md-sys-color-on-surface);
 }
 
+.filters-section {
+  gap: 1rem;
+}
+
+.filter-sublabel {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.filter-gender {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.filter-gender .gender-option.both {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--girl-bg) 55%, #ffffff) 0%,
+    color-mix(in srgb, var(--boy-bg) 55%, #ffffff) 100%
+  );
+  color: color-mix(in srgb, var(--girl-text) 50%, var(--boy-text));
+}
+
+.filter-letters-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.filter-letters {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.letter-option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  border-radius: var(--md-shape-md);
+  border: 2px solid color-mix(in srgb, var(--boy-bg-deep) 30%, var(--girl-bg-deep));
+  background: #ffffff;
+  color: var(--md-sys-color-on-surface);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.letter-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.letter-option:has(input:checked) {
+  border-color: var(--md-sys-color-primary);
+  background: color-mix(in srgb, var(--md-sys-color-primary) 12%, #ffffff);
+  color: var(--md-sys-color-primary);
+}
+
 .surname-input {
   min-height: 52px;
   border: 2px solid color-mix(in srgb, var(--boy-bg-deep) 40%, var(--girl-bg-deep));

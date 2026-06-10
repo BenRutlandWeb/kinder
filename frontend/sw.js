@@ -1,4 +1,4 @@
-const CACHE_NAME = "kinder-v15";
+const CACHE_NAME = "kinder-v16";
 
 const PRECACHE = [
   "/icons/logo.svg",

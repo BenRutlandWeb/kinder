@@ -2,6 +2,8 @@ const STORAGE_KEY = "babynames-user";
 const ASSET_VERSION =
   document.querySelector('meta[name="kinder-asset-version"]')?.content || "12";
 const STALE_RELOAD_KEY = "kinder-stale-reload";
+const ALL_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+const DEFAULT_FILTERS = { gender: "both", letters: [] };
 
 const state = {
   userId: null,
@@ -12,6 +14,7 @@ const state = {
   pendingInviteUrl: null,
   currentName: null,
   surname: "",
+  filters: { ...DEFAULT_FILTERS },
   busy: false,
   drag: null,
   inviteToken: null,
@@ -76,6 +79,9 @@ const els = {
   deleteAccountBtn: document.getElementById("delete-account-btn"),
   installAppSections: document.querySelectorAll(".install-app-banner"),
   settingsActions: document.querySelector(".settings-actions"),
+  filtersSection: document.getElementById("filters-section"),
+  filterLetters: document.getElementById("filter-letters"),
+  filterLettersAllBtn: document.getElementById("filter-letters-all"),
   confirmDialog: document.getElementById("confirm-dialog"),
   confirmDialogTitle: document.getElementById("confirm-dialog-title"),
   confirmDialogMessage: document.getElementById("confirm-dialog-message"),
@@ -112,6 +118,9 @@ const els = {
 
 let confirmResolve = null;
 let deferredInstallPrompt = null;
+let filterLetterInputs = {};
+let filtersSaveTimer = null;
+let filtersUiReady = false;
 
 function isStandaloneDisplay() {
   return (
@@ -237,7 +246,138 @@ function applyUserStatus(user) {
   if (els.surnameInput) {
     els.surnameInput.value = state.surname;
   }
+  state.filters = normalizeFilters(user.filters);
+  applyFiltersUI(state.filters);
   maybeMigrateLegacySurname();
+}
+
+function normalizeFilters(filters) {
+  const gender = filters?.gender;
+  return {
+    gender: gender === "boy" || gender === "girl" ? gender : "both",
+    letters: Array.isArray(filters?.letters)
+      ? filters.letters.map((letter) => letter.toUpperCase()).filter((letter) => ALL_LETTERS.includes(letter))
+      : [],
+  };
+}
+
+function lettersFromFilters(filters) {
+  if (!filters.letters.length) {
+    return [...ALL_LETTERS];
+  }
+  return filters.letters;
+}
+
+function filtersFromUI() {
+  const genderInput = els.filtersSection?.querySelector('input[name="filter-gender"]:checked');
+  const selectedLetters = ALL_LETTERS.filter((letter) => filterLetterInputs[letter]?.checked);
+  const letters =
+    selectedLetters.length === 0 || selectedLetters.length === ALL_LETTERS.length
+      ? []
+      : selectedLetters;
+
+  return {
+    gender: genderInput?.value || "both",
+    letters,
+  };
+}
+
+function applyFiltersUI(filters) {
+  if (!filtersUiReady) return;
+
+  const normalized = normalizeFilters(filters);
+  const genderInput = els.filtersSection?.querySelector(
+    `input[name="filter-gender"][value="${normalized.gender}"]`
+  );
+  if (genderInput) {
+    genderInput.checked = true;
+  }
+
+  const activeLetters = new Set(lettersFromFilters(normalized));
+  for (const letter of ALL_LETTERS) {
+    const input = filterLetterInputs[letter];
+    if (input) input.checked = activeLetters.has(letter);
+  }
+}
+
+function filtersMatch(a, b) {
+  const left = normalizeFilters(a);
+  const right = normalizeFilters(b);
+  if (left.gender !== right.gender) return false;
+  if (left.letters.length !== right.letters.length) return false;
+  return left.letters.every((letter, index) => letter === right.letters[index]);
+}
+
+function initFiltersUI() {
+  if (!els.filterLetters || filtersUiReady) return;
+
+  for (const letter of ALL_LETTERS) {
+    const label = document.createElement("label");
+    label.className = "letter-option";
+    label.setAttribute("aria-label", `Letter ${letter}`);
+
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = letter;
+    input.checked = true;
+
+    const text = document.createElement("span");
+    text.textContent = letter;
+
+    label.append(input, text);
+    els.filterLetters.append(label);
+    filterLetterInputs[letter] = input;
+  }
+
+  filtersUiReady = true;
+  applyFiltersUI(state.filters);
+}
+
+async function saveFiltersToServer(filters) {
+  if (!state.userId) return;
+
+  const res = await fetch("/api/me/filters", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: state.userId, ...filters }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Could not update filters");
+  }
+
+  const status = await res.json();
+  state.filters = normalizeFilters(status.filters);
+  applyFiltersUI(state.filters);
+}
+
+function scheduleFiltersSave() {
+  if (filtersSaveTimer) {
+    clearTimeout(filtersSaveTimer);
+  }
+  filtersSaveTimer = setTimeout(() => {
+    filtersSaveTimer = null;
+    void onFiltersChanged();
+  }, 300);
+}
+
+async function onFiltersChanged() {
+  const nextFilters = filtersFromUI();
+  if (filtersMatch(nextFilters, state.filters)) return;
+
+  const previousFilters = state.filters;
+  state.filters = nextFilters;
+
+  try {
+    await saveFiltersToServer(nextFilters);
+    if (state.activeTab === "home") {
+      await fetchNextName();
+    }
+  } catch (err) {
+    state.filters = previousFilters;
+    applyFiltersUI(previousFilters);
+    alert(err.message);
+  }
 }
 
 function maybeMigrateLegacySurname() {
@@ -1077,6 +1217,8 @@ function showSignIn() {
   els.displayNameInput.value = "";
   els.surnameInput.value = "";
   state.surname = "";
+  state.filters = { ...DEFAULT_FILTERS };
+  applyFiltersUI(state.filters);
   lastSavedSurname = "";
   if (els.deleteAccountBtn) els.deleteAccountBtn.disabled = false;
 }
@@ -1292,6 +1434,26 @@ els.surnameInput.addEventListener("input", () => {
   if (state.currentName && !els.card.classList.contains("hidden")) {
     updateCardSurname();
   }
+});
+
+initFiltersUI();
+
+for (const radio of els.filtersSection?.querySelectorAll('input[name="filter-gender"]') || []) {
+  radio.addEventListener("change", () => {
+    void onFiltersChanged();
+  });
+}
+
+els.filterLetters?.addEventListener("change", () => {
+  scheduleFiltersSave();
+});
+
+els.filterLettersAllBtn?.addEventListener("click", () => {
+  for (const letter of ALL_LETTERS) {
+    const input = filterLetterInputs[letter];
+    if (input) input.checked = true;
+  }
+  scheduleFiltersSave();
 });
 
 els.surnameInput.addEventListener("blur", async () => {

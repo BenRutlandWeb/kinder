@@ -99,6 +99,25 @@ class UpdateSurnameRequest(BaseModel):
         return value.strip()
 
 
+class UpdateFiltersRequest(BaseModel):
+    user_id: int = Field(..., ge=1)
+    gender: str = Field("both", pattern=r"^(both|boy|girl)$")
+    letters: list[str] = Field(default_factory=list)
+
+    @field_validator("letters")
+    @classmethod
+    def normalize_letters(cls, value: list[str]) -> list[str]:
+        seen: set[str] = set()
+        result: list[str] = []
+        for letter in value:
+            char = letter.strip().upper()
+            if len(char) == 1 and char.isalpha() and char not in seen:
+                seen.add(char)
+                result.append(char)
+        result.sort()
+        return result
+
+
 class CreateInviteRequest(BaseModel):
     user_id: int = Field(..., ge=1)
 
@@ -231,7 +250,7 @@ def _display_name(row) -> str:
     return name if name else row["email"]
 
 
-_USER_COLUMNS = "id, email, name, partner_id, surname"
+_USER_COLUMNS = "id, email, name, partner_id, surname, filter_gender, filter_letters"
 
 
 async def _get_user_row(db, user_id: int):
@@ -239,6 +258,44 @@ async def _get_user_row(db, user_id: int):
         f"SELECT {_USER_COLUMNS} FROM users WHERE id = ?", (user_id,)
     )
     return await cursor.fetchone()
+
+
+def _filters_from_row(row) -> dict:
+    letters_raw = row["filter_letters"] or ""
+    letters = [letter for letter in letters_raw.split(",") if letter] if letters_raw else []
+    gender = row["filter_gender"] or "both"
+    if gender not in ("both", "boy", "girl"):
+        gender = "both"
+    return {"gender": gender, "letters": letters}
+
+
+def _letters_to_db(letters: list[str]) -> str | None:
+    if not letters:
+        return None
+    return ",".join(letters)
+
+
+def _build_name_filters(prefix: str, gender: str, letters: list[str]) -> tuple[str, list]:
+    parts: list[str] = []
+    params: list = []
+    gender_col = f"{prefix}.gender"
+    name_col = f"{prefix}.name"
+
+    if gender == "boy":
+        parts.append(f"{gender_col} = ?")
+        params.append("M")
+    elif gender == "girl":
+        parts.append(f"{gender_col} = ?")
+        params.append("F")
+
+    if letters:
+        placeholders = ", ".join("?" * len(letters))
+        parts.append(f"UPPER(SUBSTR({name_col}, 1, 1)) IN ({placeholders})")
+        params.extend(letters)
+
+    if not parts:
+        return "", []
+    return " AND " + " AND ".join(parts), params
 
 
 async def _pending_invite_url(db, inviter_id: int) -> str | None:
@@ -271,6 +328,7 @@ async def _user_status(db, user_row) -> dict:
         "email": user_row["email"],
         "name": user_row["name"] or "",
         "surname": user_row["surname"] or "",
+        "filters": _filters_from_row(user_row),
         "linked": user_row["partner_id"] is not None,
         "partner_name": partner_name,
         "pending_invite_url": pending_invite_url,
@@ -340,6 +398,28 @@ async def update_surname(body: UpdateSurnameRequest):
             raise HTTPException(status_code=404, detail="User not found")
         await db.execute(
             "UPDATE users SET surname = ? WHERE id = ?", (body.surname, body.user_id)
+        )
+        await db.commit()
+        row = await _get_user_row(db, body.user_id)
+        return await _user_status(db, row)
+    finally:
+        await db.close()
+
+
+@app.post("/api/me/filters")
+async def update_filters(body: UpdateFiltersRequest):
+    db = await get_db()
+    try:
+        row = await _get_user_row(db, body.user_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        await db.execute(
+            """
+            UPDATE users
+            SET filter_gender = ?, filter_letters = ?
+            WHERE id = ?
+            """,
+            (body.gender, _letters_to_db(body.letters), body.user_id),
         )
         await db.commit()
         row = await _get_user_row(db, body.user_id)
@@ -519,8 +599,22 @@ def _format_next_name(row) -> dict:
 async def next_name(user_id: int = Query(..., ge=1)):
     db = await get_db()
     try:
+        user_row = await _get_user_row(db, user_id)
+        if user_row is None:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        filters = _filters_from_row(user_row)
+        gender_filter = filters["gender"]
+        letter_filter = filters["letters"]
+        custom_filter_sql, custom_filter_params = _build_name_filters(
+            "cr", gender_filter, letter_filter
+        )
+        name_filter_sql, name_filter_params = _build_name_filters(
+            "n", gender_filter, letter_filter
+        )
+
         cursor = await db.execute(
-            """
+            f"""
             SELECT 'custom' AS source, cr.id AS id, cr.name AS name,
                    cr.gender AS gender, NULL AS rank, cr.created_at
             FROM custom_recommendations cr
@@ -528,7 +622,7 @@ async def next_name(user_id: int = Query(..., ge=1)):
               AND cr.id NOT IN (
                   SELECT cs.custom_recommendation_id
                   FROM custom_swipes cs WHERE cs.user_id = ?
-              )
+              ){custom_filter_sql}
             UNION ALL
             SELECT 'db' AS source, n.id AS id, n.name AS name,
                    n.gender AS gender, n.rank AS rank, r.created_at
@@ -537,7 +631,7 @@ async def next_name(user_id: int = Query(..., ge=1)):
             WHERE r.recipient_id = ?
               AND n.id NOT IN (
                   SELECT s.name_id FROM swipes s WHERE s.user_id = ?
-              )
+              ){name_filter_sql}
             UNION ALL
             SELECT 'db' AS source, n.id AS id, n.name AS name,
                    n.gender AS gender, n.rank AS rank, ps.created_at
@@ -549,26 +643,36 @@ async def next_name(user_id: int = Query(..., ge=1)):
               AND u.partner_id IS NOT NULL
               AND n.id NOT IN (
                   SELECT s.name_id FROM swipes s WHERE s.user_id = ?
-              )
+              ){name_filter_sql}
             ORDER BY created_at DESC
             LIMIT 1
             """,
-            (user_id, user_id, user_id, user_id, user_id, user_id),
+            (
+                user_id,
+                user_id,
+                *custom_filter_params,
+                user_id,
+                user_id,
+                *name_filter_params,
+                user_id,
+                user_id,
+                *name_filter_params,
+            ),
         )
         row = await cursor.fetchone()
         if row is None:
             cursor = await db.execute(
-                """
+                f"""
                 SELECT 'db' AS source, n.id AS id, n.name AS name,
                        n.gender AS gender, n.rank AS rank, NULL AS created_at
                 FROM names n
                 WHERE n.id NOT IN (
                     SELECT s.name_id FROM swipes s WHERE s.user_id = ?
-                )
+                ){name_filter_sql}
                 ORDER BY RANDOM()
                 LIMIT 1
                 """,
-                (user_id,),
+                (user_id, *name_filter_params),
             )
             row = await cursor.fetchone()
         if row is None:

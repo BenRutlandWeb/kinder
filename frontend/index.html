@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-title" content="Kinder" />
   <meta name="theme-color" content="#fff8f7" />
   <meta name="description" content="Swipe baby names with your partner and find matches you both love." />
-  <meta name="kinder-asset-version" content="15" />
+  <meta name="kinder-asset-version" content="16" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Kinder</title>
   <style>
@@ -254,6 +254,36 @@
                 autocomplete="family-name"
                 maxlength="50"
               />
+            </div>
+          </div>
+          <div id="filters-section" class="surname-field filters-section">
+            <p class="surname-label">Filters</p>
+            <div class="settings-field">
+              <span class="filter-sublabel">Gender</span>
+              <div class="filter-gender" role="radiogroup" aria-label="Gender filter">
+                <label class="gender-option girl">
+                  <input type="radio" name="filter-gender" value="girl" />
+                  <span class="gender-option-icon material-symbols-rounded" aria-hidden="true">woman</span>
+                  <span class="gender-option-label">Girl</span>
+                </label>
+                <label class="gender-option both">
+                  <input type="radio" name="filter-gender" value="both" checked />
+                  <span class="gender-option-icon material-symbols-rounded" aria-hidden="true">wc</span>
+                  <span class="gender-option-label">Both</span>
+                </label>
+                <label class="gender-option boy">
+                  <input type="radio" name="filter-gender" value="boy" />
+                  <span class="gender-option-icon material-symbols-rounded" aria-hidden="true">man</span>
+                  <span class="gender-option-label">Boy</span>
+                </label>
+              </div>
+            </div>
+            <div class="settings-field">
+              <div class="filter-letters-header">
+                <span class="filter-sublabel">Starting letter</span>
+                <button type="button" id="filter-letters-all" class="text-btn">All</button>
+              </div>
+              <div id="filter-letters" class="filter-letters" role="group" aria-label="Starting letters"></div>
             </div>
           </div>
           <div id="partner-section" class="surname-field">
