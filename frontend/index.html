@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+  <meta charset="UTF-8" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+
+  <title>Baby Name Swiper</title>
+
+  <link rel="stylesheet" href="/style.css" />
+
+</head>
+
+<body>
+
+  <section id="sign-in-screen" class="sign-in-screen">
+
+    <h1>Baby Names</h1>
+
+    <p class="sign-in-prompt">Enter your email to get started</p>
+
+    <form id="sign-in-form" class="sign-in-form">
+
+      <input
+
+        type="email"
+
+        id="email-input"
+
+        class="email-input"
+
+        placeholder="you@example.com"
+
+        autocomplete="email"
+
+        required
+
+      />
+
+      <button type="submit" class="sign-in-btn">Continue</button>
+
+    </form>
+
+    <p id="sign-in-error" class="sign-in-error hidden"></p>
+
+  </section>
+
+
+
+  <section id="invite-screen" class="sign-in-screen hidden">
+
+    <h1>Baby Names</h1>
+
+    <p class="sign-in-prompt">
+
+      <strong id="invite-inviter"></strong> invited you to swipe baby names together.
+
+    </p>
+
+    <form id="invite-form" class="sign-in-form">
+
+      <input
+
+        type="email"
+
+        id="invite-email-input"
+
+        class="email-input"
+
+        placeholder="you@example.com"
+
+        autocomplete="email"
+
+        required
+
+      />
+
+      <button type="submit" class="sign-in-btn">Accept invite</button>
+
+    </form>
+
+    <p id="invite-error" class="sign-in-error hidden"></p>
+
+    <button type="button" id="invite-skip-btn" class="text-btn">Sign in without linking</button>
+
+  </section>
+
+
+
+  <div id="app" class="app hidden">
+
+    <header class="app-bar">
+
+      <button type="button" id="menu-btn" class="menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="sidebar">
+
+        <span class="menu-icon" aria-hidden="true"></span>
+
+      </button>
+
+      <h1 class="app-bar-title">Baby Names</h1>
+
+      <div class="app-bar-spacer" aria-hidden="true"></div>
+
+    </header>
+
+
+
+    <div id="sidebar-overlay" class="sidebar-overlay hidden" aria-hidden="true"></div>
+
+    <aside id="sidebar" class="sidebar" aria-label="Account menu" aria-hidden="true">
+
+      <div class="sidebar-header">
+
+        <h2 class="sidebar-title">Account</h2>
+
+        <button type="button" id="close-sidebar-btn" class="close-sidebar-btn" aria-label="Close menu">&times;</button>
+
+      </div>
+
+
+
+      <p class="swiping-as">Swiping as <strong id="current-user-label"></strong></p>
+
+
+
+      <div id="partner-section" class="partner-section">
+
+        <div id="partner-linked" class="partner-status hidden">
+
+          <span>Linked with <strong id="partner-email"></strong></span>
+
+          <button type="button" id="unlink-btn" class="text-btn">Unlink</button>
+
+        </div>
+
+        <div id="partner-pending" class="partner-status hidden">
+          <span>Waiting for your partner to accept</span>
+          <button type="button" id="reshare-btn" class="invite-btn">Share link again</button>
+        </div>
+
+        <div id="invite-partner-section" class="invite-partner-form hidden">
+          <p class="partner-prompt">Invite your partner to see mutual matches</p>
+          <button type="button" id="share-invite-btn" class="sign-in-btn share-invite-btn">Share invite link</button>
+          <p id="invite-feedback" class="invite-feedback hidden"></p>
+        </div>
+
+      </div>
+
+
+
+      <div class="sidebar-actions">
+
+        <button type="button" id="matches-btn" class="sidebar-action-btn">View Matches</button>
+
+        <p id="matches-hint" class="matches-hint hidden">Link with a partner to see mutual matches</p>
+
+        <button type="button" id="clear-picks-btn" class="sidebar-action-btn sidebar-action-btn-danger">Clear picks</button>
+
+        <button type="button" id="sign-out-btn" class="sign-out-btn">Log out</button>
+
+      </div>
+
+    </aside>
+
+
+
+    <main class="main">
+
+      <div class="card-stack">
+
+        <article id="name-card" class="name-card hidden" aria-live="polite">
+
+          <span class="swipe-hint swipe-hint-no">NOPE</span>
+
+          <span class="swipe-hint swipe-hint-yes">LOVE</span>
+
+          <span class="rank" id="name-rank"></span>
+
+          <h2 class="name" id="name-text"></h2>
+
+          <span class="gender-badge" id="gender-badge"></span>
+
+        </article>
+
+        <p id="empty-state" class="empty-state hidden">All done! Check your matches.</p>
+
+        <p id="loading-state" class="loading-state">Loading names…</p>
+
+      </div>
+
+
+
+      <div class="actions">
+
+        <button type="button" id="dislike-btn" class="action-btn dislike" aria-label="No">
+
+          <span class="icon">✕</span>
+
+          <span class="label">No</span>
+
+        </button>
+
+        <button type="button" id="like-btn" class="action-btn like" aria-label="Yes">
+
+          <span class="icon">♥</span>
+
+          <span class="label">Yes</span>
+
+        </button>
+
+      </div>
+
+    </main>
+
+
+
+    <section class="picks-section" aria-labelledby="picks-heading">
+
+      <h2 id="picks-heading" class="picks-heading">Your picks</h2>
+
+      <div id="picks-columns" class="name-columns hidden">
+
+        <div class="name-column">
+
+          <h3 class="column-heading boy">Boys</h3>
+
+          <ul id="picks-boys-list" class="picks-list"></ul>
+
+          <p id="no-picks-boys" class="no-picks-column hidden">None yet</p>
+
+        </div>
+
+        <div class="name-column">
+
+          <h3 class="column-heading girl">Girls</h3>
+
+          <ul id="picks-girls-list" class="picks-list"></ul>
+
+          <p id="no-picks-girls" class="no-picks-column hidden">None yet</p>
+
+        </div>
+
+      </div>
+
+      <p id="no-picks" class="no-picks">No picks yet — swipe right on names you like!</p>
+
+    </section>
+
+
+
+  </div>
+
+
+
+  <dialog id="matches-modal" class="matches-modal">
+
+    <div class="modal-header">
+
+      <h2>Mutual Matches</h2>
+
+      <button type="button" id="close-modal" class="close-btn" aria-label="Close">&times;</button>
+
+    </div>
+
+    <div id="matches-columns" class="name-columns matches-columns hidden">
+
+      <div class="name-column">
+
+        <h3 class="column-heading boy">Boys</h3>
+
+        <ul id="matches-boys-list" class="matches-list"></ul>
+
+        <p id="no-matches-boys" class="no-picks-column hidden">None yet</p>
+
+      </div>
+
+      <div class="name-column">
+
+        <h3 class="column-heading girl">Girls</h3>
+
+        <ul id="matches-girls-list" class="matches-list"></ul>
+
+        <p id="no-matches-girls" class="no-picks-column hidden">None yet</p>
+
+      </div>
+
+    </div>
+
+    <p id="no-matches" class="no-matches">No mutual likes yet — keep swiping!</p>
+
+  </dialog>
+
+
+
+  <script src="/app.js"></script>
+
+</body>
+
+</html>
+
+

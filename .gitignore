@@ -1,0 +1,8 @@
+# Runtime database — names are seeded from sample-data/ on first start
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+__pycache__/
+*.pyc
+.env

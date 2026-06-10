@@ -1,0 +1,33 @@
+services:
+  babynames:
+    build: .
+    ports:
+      - "9000:8000"
+    volumes:
+      - ./data:/data
+      - ./sample-data:/sample-data:ro
+      - ./frontend:/app/frontend
+    environment:
+      DATA_DIR: /data
+      BASE_URL: ${BASE_URL:-http://localhost:9000}
+    restart: unless-stopped
+
+  import-girls:
+    build: .
+    profiles: [import]
+    volumes:
+      - ./data:/data
+      - ./sample-data:/sample-data:ro
+    environment:
+      DATA_DIR: /data
+    command: python scripts/import_csv.py /sample-data/babynames1996to2024-Table_1.csv F
+
+  import-boys:
+    build: .
+    profiles: [import]
+    volumes:
+      - ./data:/data
+      - ./sample-data:/sample-data:ro
+    environment:
+      DATA_DIR: /data
+    command: python scripts/import_csv.py /sample-data/babynames1996to2024-Table_2.csv M
