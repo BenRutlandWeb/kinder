@@ -53,6 +53,15 @@ If you host Kinder behind a reverse proxy or tunnel, set `BASE_URL` to the URL p
 docker compose up -d
 ```
 
+After pulling updates on a running server, rebuild and restart so the container picks up changes:
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+If the UI still looks old after deploy, the browser may be serving a cached copy from the service worker. Hard-refresh the page, or clear site data for the Kinder URL in your browser settings.
+
 ## Data
 
 Baby names come from [UK ONS baby name statistics](https://www.gov.uk/government/statistics/baby-names-in-england-and-wales) (England and Wales). Your swipes, accounts, and matches stay in a local SQLite database under `data/` on your machine.

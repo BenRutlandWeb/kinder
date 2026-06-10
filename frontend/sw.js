@@ -1,10 +1,6 @@
-const CACHE_NAME = "kinder-v10";
+const CACHE_NAME = "kinder-v11";
+
 const PRECACHE = [
-  "/",
-  "/index.html",
-  "/style.css",
-  "/app.js",
-  "/manifest.webmanifest",
   "/icons/logo.svg",
   "/icons/icon.svg",
   "/icons/icon-192.png",
@@ -12,7 +8,19 @@ const PRECACHE = [
   "/icons/favicon.ico",
   "/icons/favicon-32.png",
   "/icons/apple-touch-icon.png",
+  "/manifest.webmanifest",
 ];
+
+const NETWORK_FIRST = new Set([
+  "/",
+  "/index.html",
+  "/style.css",
+  "/app.js",
+]);
+
+function shouldNeverCache(pathname) {
+  return pathname === "/sw.js" || pathname.startsWith("/api/");
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -29,29 +37,48 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+async function networkFirst(request) {
+  const cache = await caches.open(CACHE_NAME);
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      await cache.put(request, response.clone());
+    }
+    return response;
+  } catch {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    throw new Error("Offline");
+  }
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+
+  const response = await fetch(request);
+  if (response.ok) {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(request, response.clone());
+  }
+  return response;
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
-  if (url.pathname.startsWith("/api/")) {
+  if (url.origin !== self.location.origin) return;
+  if (shouldNeverCache(url.pathname)) {
     event.respondWith(fetch(request));
     return;
   }
 
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      const network = fetch(request)
-        .then((response) => {
-          if (response.ok && url.origin === self.location.origin) {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached);
+  if (NETWORK_FIRST.has(url.pathname)) {
+    event.respondWith(networkFirst(request));
+    return;
+  }
 
-      return cached || network;
-    })
-  );
+  event.respondWith(cacheFirst(request));
 });
