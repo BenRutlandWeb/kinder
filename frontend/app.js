@@ -1,4 +1,5 @@
 const STORAGE_KEY = "babynames-user";
+const SURNAME_STORAGE_KEY = "babynames-surname";
 
 const state = {
   userId: null,
@@ -7,9 +8,12 @@ const state = {
   partnerEmail: null,
   pendingInviteUrl: null,
   currentName: null,
+  surname: "",
   busy: false,
   drag: null,
   inviteToken: null,
+  activeTab: "home",
+  searchTimer: null,
 };
 
 const SWIPE_THRESHOLD = 80;
@@ -38,18 +42,17 @@ const els = {
   shareInviteBtn: document.getElementById("share-invite-btn"),
   reshareBtn: document.getElementById("reshare-btn"),
   inviteFeedback: document.getElementById("invite-feedback"),
+  surnameInput: document.getElementById("surname-input"),
   card: document.getElementById("name-card"),
   nameText: document.getElementById("name-text"),
+  nameSurname: document.getElementById("name-surname"),
   nameRank: document.getElementById("name-rank"),
   genderBadge: document.getElementById("gender-badge"),
   emptyState: document.getElementById("empty-state"),
   loadingState: document.getElementById("loading-state"),
   dislikeBtn: document.getElementById("dislike-btn"),
   likeBtn: document.getElementById("like-btn"),
-  matchesBtn: document.getElementById("matches-btn"),
   matchesHint: document.getElementById("matches-hint"),
-  matchesModal: document.getElementById("matches-modal"),
-  closeModal: document.getElementById("close-modal"),
   matchesColumns: document.getElementById("matches-columns"),
   matchesBoysList: document.getElementById("matches-boys-list"),
   matchesGirlsList: document.getElementById("matches-girls-list"),
@@ -62,11 +65,33 @@ const els = {
   noPicksBoys: document.getElementById("no-picks-boys"),
   noPicksGirls: document.getElementById("no-picks-girls"),
   noPicks: document.getElementById("no-picks"),
-  menuBtn: document.getElementById("menu-btn"),
-  sidebar: document.getElementById("sidebar"),
-  sidebarOverlay: document.getElementById("sidebar-overlay"),
-  closeSidebarBtn: document.getElementById("close-sidebar-btn"),
   clearPicksBtn: document.getElementById("clear-picks-btn"),
+  recommendSection: document.getElementById("recommend-section"),
+  recommendHeading: document.getElementById("recommend-heading"),
+  recommendHint: document.getElementById("recommend-hint"),
+  recommendForm: document.getElementById("recommend-form"),
+  recommendInput: document.getElementById("recommend-input"),
+  recommendBtn: document.getElementById("recommend-btn"),
+  recommendBtnLabel: document.getElementById("recommend-btn-label"),
+  recommendSuggestions: document.getElementById("recommend-suggestions"),
+  recommendFeedback: document.getElementById("recommend-feedback"),
+  sentRecommendations: document.getElementById("sent-recommendations"),
+  sentBoysList: document.getElementById("sent-boys-list"),
+  sentGirlsList: document.getElementById("sent-girls-list"),
+  noSentBoys: document.getElementById("no-sent-boys"),
+  noSentGirls: document.getElementById("no-sent-girls"),
+  tabPanels: {
+    home: document.getElementById("tab-home"),
+    picks: document.getElementById("tab-picks"),
+    matches: document.getElementById("tab-matches"),
+    settings: document.getElementById("tab-settings"),
+  },
+  navBtns: {
+    home: document.getElementById("nav-home"),
+    picks: document.getElementById("nav-picks"),
+    matches: document.getElementById("nav-matches"),
+    settings: document.getElementById("nav-settings"),
+  },
 };
 
 function getInviteTokenFromUrl() {
@@ -92,22 +117,27 @@ function applyUserStatus(user) {
   );
 }
 
-function openSidebar() {
-  els.sidebar.classList.add("open");
-  els.sidebarOverlay.classList.remove("hidden");
-  els.sidebar.setAttribute("aria-hidden", "false");
-  els.sidebarOverlay.setAttribute("aria-hidden", "false");
-  els.menuBtn.setAttribute("aria-expanded", "true");
-  document.body.classList.add("sidebar-open");
-}
+function switchTab(tab) {
+  if (tab === "matches" && !state.linked) tab = "home";
+  if (!els.tabPanels[tab]) return;
 
-function closeSidebar() {
-  els.sidebar.classList.remove("open");
-  els.sidebarOverlay.classList.add("hidden");
-  els.sidebar.setAttribute("aria-hidden", "true");
-  els.sidebarOverlay.setAttribute("aria-hidden", "true");
-  els.menuBtn.setAttribute("aria-expanded", "false");
-  document.body.classList.remove("sidebar-open");
+  state.activeTab = tab;
+
+  for (const [name, panel] of Object.entries(els.tabPanels)) {
+    panel.classList.toggle("hidden", name !== tab);
+  }
+
+  for (const [name, btn] of Object.entries(els.navBtns)) {
+    const active = name === tab;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-current", active ? "page" : "false");
+  }
+
+  if (tab === "picks") {
+    loadPicks();
+    loadSentRecommendations();
+  }
+  if (tab === "matches") loadMatches();
 }
 
 function updatePartnerUI() {
@@ -121,18 +151,103 @@ function updatePartnerUI() {
     els.partnerEmail.textContent = state.partnerEmail;
   }
 
-  els.matchesBtn.classList.toggle("hidden", !state.linked);
+  els.navBtns.matches.classList.toggle("hidden", !state.linked);
+  if (!state.linked && state.activeTab === "matches") {
+    switchTab("home");
+  }
+
   els.matchesHint.classList.toggle("hidden", state.linked);
+  updateRecommendUI();
+}
+
+function canNativeShare(shareData) {
+  if (!navigator.share) return false;
+  if (typeof navigator.canShare === "function") {
+    return navigator.canShare(shareData);
+  }
+  // Firefox desktop exposes share but does not offer a working share UI.
+  const isFirefoxDesktop =
+    /Firefox/i.test(navigator.userAgent) &&
+    !/Mobile|Android|Tablet/i.test(navigator.userAgent);
+  return !isFirefoxDesktop;
+}
+
+function showInviteLinkFeedback(url, copied) {
+  if (copied) {
+    els.inviteFeedback.textContent =
+      "Link copied — paste it in WhatsApp, Gmail, or anywhere.";
+  } else {
+    els.inviteFeedback.innerHTML = `Copy this link:<br><a href="${url}">${url}</a>`;
+  }
+  els.inviteFeedback.classList.remove("hidden");
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.write && window.ClipboardItem) {
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": Promise.resolve(new Blob([text], { type: "text/plain" })),
+        }),
+      ]);
+      return true;
+    } catch {
+      /* try next method */
+    }
+  }
+
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      /* try next method */
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    return document.execCommand("copy");
+  } catch {
+    return false;
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
+async function copyInviteUrlWithGesture(urlPromise) {
+  if (!navigator.clipboard?.write || !window.ClipboardItem) {
+    return false;
+  }
+
+  try {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        "text/plain": urlPromise.then(
+          (url) => new Blob([url], { type: "text/plain" })
+        ),
+      }),
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function shareInviteLink(url) {
   const shareData = {
-    title: "Baby Names",
-    text: "Join me to swipe baby names together!",
+    title: "Kinder",
+    text: "Join me on Kinder to swipe baby names together!",
     url,
   };
 
-  if (navigator.share) {
+  if (canNativeShare(shareData)) {
     try {
       await navigator.share(shareData);
       return true;
@@ -141,21 +256,12 @@ async function shareInviteLink(url) {
     }
   }
 
-  try {
-    await navigator.clipboard.writeText(url);
-    els.inviteFeedback.textContent = "Link copied — paste it in WhatsApp, Gmail, or anywhere.";
-    els.inviteFeedback.classList.remove("hidden");
-    return true;
-  } catch {
-    els.inviteFeedback.innerHTML = `Copy this link:<br><a href="${url}">${url}</a>`;
-    els.inviteFeedback.classList.remove("hidden");
-    return false;
-  }
+  const copied = await copyTextToClipboard(url);
+  showInviteLinkFeedback(url, copied);
+  return copied;
 }
 
-async function createAndShareInvite() {
-  els.inviteFeedback.classList.add("hidden");
-
+async function fetchInviteUrl() {
   const res = await fetch("/api/invite", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -168,7 +274,25 @@ async function createAndShareInvite() {
   }
 
   await refreshUserStatus();
-  await shareInviteLink(data.invite_url);
+  return data.invite_url;
+}
+
+async function createAndShareInvite() {
+  els.inviteFeedback.classList.add("hidden");
+
+  const inviteUrlPromise = fetchInviteUrl();
+  const wantsNativeShare = canNativeShare({
+    title: "Kinder",
+    text: "Join me on Kinder to swipe baby names together!",
+    url: `${window.location.origin}/?invite=preview`,
+  });
+
+  if (!wantsNativeShare && (await copyInviteUrlWithGesture(inviteUrlPromise))) {
+    showInviteLinkFeedback(await inviteUrlPromise, true);
+    return;
+  }
+
+  await shareInviteLink(await inviteUrlPromise);
 }
 
 function setActionsEnabled(enabled) {
@@ -184,6 +308,31 @@ function resetCardTransform() {
   els.card.classList.remove("dragging");
 }
 
+function loadSurname() {
+  const saved = localStorage.getItem(SURNAME_STORAGE_KEY);
+  state.surname = saved || "";
+  els.surnameInput.value = state.surname;
+}
+
+function saveSurname(value) {
+  state.surname = value.trim();
+  if (state.surname) {
+    localStorage.setItem(SURNAME_STORAGE_KEY, state.surname);
+  } else {
+    localStorage.removeItem(SURNAME_STORAGE_KEY);
+  }
+}
+
+function updateCardSurname() {
+  if (state.surname) {
+    els.nameSurname.textContent = state.surname;
+    els.nameSurname.classList.remove("hidden");
+  } else {
+    els.nameSurname.textContent = "";
+    els.nameSurname.classList.add("hidden");
+  }
+}
+
 function showCard(name) {
   els.loadingState.classList.add("hidden");
   els.emptyState.classList.add("hidden");
@@ -193,8 +342,11 @@ function showCard(name) {
   const isBoy = name.gender === "M";
   els.card.classList.add(isBoy ? "boy" : "girl", "entering");
   els.nameText.textContent = name.name;
-  els.nameRank.textContent = `#${name.rank}`;
+  updateCardSurname();
+  els.nameRank.textContent = name.rank ? `#${name.rank}` : "";
+  els.nameRank.classList.toggle("hidden", !name.rank);
   els.genderBadge.textContent = isBoy ? "Boy" : "Girl";
+  els.genderBadge.classList.remove("hidden");
 
   requestAnimationFrame(() => {
     els.card.classList.remove("entering");
@@ -243,14 +395,17 @@ async function recordSwipe(status, animate = true) {
     els.card.classList.add(direction);
   }
 
+  const swipeBody = { user_id: state.userId, status };
+  if (state.currentName.custom) {
+    swipeBody.custom_id = state.currentName.id;
+  } else {
+    swipeBody.name_id = state.currentName.id;
+  }
+
   const swipePromise = fetch("/api/swipe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      user_id: state.userId,
-      name_id: state.currentName.id,
-      status,
-    }),
+    body: JSON.stringify(swipeBody),
   });
 
   if (animate) {
@@ -268,7 +423,9 @@ async function recordSwipe(status, animate = true) {
   }
 
   state.busy = false;
-  await Promise.all([fetchNextName(), loadPicks()]);
+  const refresh = [fetchNextName(), loadPicks()];
+  if (state.linked) refresh.push(loadMatches());
+  await Promise.all(refresh);
 }
 
 function splitByGender(names) {
@@ -283,7 +440,8 @@ function renderNameList(container, names, nameClass, rankClass) {
   for (const item of names) {
     const li = document.createElement("li");
     li.className = item.gender === "M" ? "boy" : "girl";
-    li.innerHTML = `<span class="${nameClass}">${item.name}</span><span class="${rankClass}">#${item.rank}</span>`;
+    const rankHtml = item.rank ? `<span class="${rankClass}">#${item.rank}</span>` : "";
+    li.innerHTML = `<span class="${nameClass}">${item.name}</span>${rankHtml}`;
     container.appendChild(li);
   }
 }
@@ -314,20 +472,185 @@ async function clearPicks() {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || "Could not clear picks");
+      const detail = err.detail;
+      const message =
+        typeof detail === "string"
+          ? detail
+          : res.status === 405
+            ? "Clear picks is not available — restart the app server."
+            : "Could not clear picks";
+      throw new Error(message);
     }
 
     await Promise.all([loadPicks(), fetchNextName()]);
-    closeSidebar();
   } catch (err) {
     alert(err.message);
-  } finally {
-    els.clearPicksBtn.disabled = false;
+    await loadPicks();
   }
+}
+
+function updateRecommendUI() {
+  els.recommendSection.classList.remove("hidden");
+
+  if (state.linked) {
+    els.recommendHeading.textContent = "Recommend to partner";
+    els.recommendHint.textContent =
+      "Suggest any name — it'll show up first on their home screen. Known names are matched from the database automatically.";
+    els.recommendBtnLabel.textContent = "Send";
+  } else {
+    els.recommendHeading.textContent = "Add a name";
+    els.recommendHint.textContent =
+      "Add any name to your picks. Known names are matched from the database automatically.";
+    els.recommendBtnLabel.textContent = "Add";
+  }
+}
+
+function getSelectedRecommendGender() {
+  const selected = els.recommendForm.querySelector('input[name="recommend-gender"]:checked');
+  return selected ? selected.value : null;
+}
+
+function setRecommendGender(gender) {
+  const radio = els.recommendForm.querySelector(`input[name="recommend-gender"][value="${gender}"]`);
+  if (radio) radio.checked = true;
+  updateRecommendBtnState();
+}
+
+function updateRecommendBtnState() {
+  const name = els.recommendInput.value.trim();
+  const gender = getSelectedRecommendGender();
+  els.recommendBtn.disabled = name.length < 1 || !gender;
+}
+
+function clearRecommendSelection() {
+  els.recommendInput.value = "";
+  for (const radio of els.recommendForm.querySelectorAll('input[name="recommend-gender"]')) {
+    radio.checked = false;
+  }
+  updateRecommendBtnState();
+  hideRecommendSuggestions();
+}
+
+function hideRecommendSuggestions() {
+  els.recommendSuggestions.classList.add("hidden");
+  els.recommendSuggestions.innerHTML = "";
+}
+
+function selectRecommendName(item) {
+  els.recommendInput.value = item.name;
+  setRecommendGender(item.gender);
+  hideRecommendSuggestions();
+}
+
+function renderRecommendSuggestions(items) {
+  els.recommendSuggestions.innerHTML = "";
+  if (!items.length) {
+    els.recommendSuggestions.classList.add("hidden");
+    return;
+  }
+
+  for (const item of items) {
+    const li = document.createElement("li");
+    li.className = item.gender === "M" ? "boy" : "girl";
+    li.setAttribute("role", "option");
+    li.innerHTML = `<span class="suggestion-name">${item.name}</span><span class="suggestion-meta">${item.gender === "M" ? "Boy" : "Girl"} · #${item.rank}</span>`;
+    li.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      selectRecommendName(item);
+    });
+    els.recommendSuggestions.appendChild(li);
+  }
+
+  els.recommendSuggestions.classList.remove("hidden");
+}
+
+async function searchRecommendNames(query) {
+  const res = await fetch(`/api/names/search?q=${encodeURIComponent(query)}`);
+  if (!res.ok) return [];
+  return res.json();
+}
+
+function scheduleRecommendSearch(query) {
+  clearTimeout(state.searchTimer);
+  state.searchTimer = setTimeout(async () => {
+    const items = await searchRecommendNames(query);
+    renderRecommendSuggestions(items);
+  }, 200);
+}
+
+function showRecommendFeedback(message, isError = false) {
+  els.recommendFeedback.textContent = message;
+  els.recommendFeedback.classList.toggle("recommend-feedback-error", isError);
+  els.recommendFeedback.classList.remove("hidden");
+}
+
+async function submitRecommendation(e) {
+  e.preventDefault();
+  const name = els.recommendInput.value.trim();
+  const gender = getSelectedRecommendGender();
+  if (!name || !gender) return;
+
+  els.recommendBtn.disabled = true;
+
+  try {
+    const res = await fetch("/api/recommend", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: state.userId,
+        name,
+        gender,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.detail || "Could not send recommendation");
+    }
+
+    showRecommendFeedback(
+      state.linked
+        ? `Sent "${name}" to your partner!`
+        : `Added "${name}" to your picks!`
+    );
+    clearRecommendSelection();
+    const refresh = [loadPicks()];
+    if (state.linked) {
+      refresh.push(loadSentRecommendations(), loadMatches());
+    }
+    await Promise.all(refresh);
+  } catch (err) {
+    showRecommendFeedback(err.message, true);
+    updateRecommendBtnState();
+  }
+}
+
+async function loadSentRecommendations() {
+  if (!state.userId || !state.linked) {
+    els.sentRecommendations.classList.add("hidden");
+    return;
+  }
+
+  const res = await fetch(`/api/recommendations?user_id=${state.userId}`);
+  if (!res.ok) return;
+
+  const items = await res.json();
+  const { boys, girls } = splitByGender(items);
+  els.sentRecommendations.classList.toggle("hidden", items.length === 0);
+
+  renderGenderColumns(
+    { boys, girls },
+    { boys: els.sentBoysList, girls: els.sentGirlsList },
+    { boys: els.noSentBoys, girls: els.noSentGirls },
+    "sent-name",
+    "sent-rank"
+  );
 }
 
 async function loadPicks() {
   if (!state.userId) return;
+
+  updateRecommendUI();
 
   const res = await fetch(`/api/likes?user_id=${state.userId}`);
   if (!res.ok) return;
@@ -338,6 +661,7 @@ async function loadPicks() {
 
   els.noPicks.classList.toggle("hidden", hasPicks);
   els.picksColumns.classList.toggle("hidden", !hasPicks);
+  els.clearPicksBtn.disabled = !hasPicks;
 
   if (hasPicks) {
     renderGenderColumns(
@@ -356,23 +680,21 @@ async function refreshUserStatus() {
   const user = await res.json();
   applyUserStatus(user);
   updatePartnerUI();
+  if (state.activeTab === "matches") loadMatches();
 }
 
 async function loadMatches() {
   els.noMatches.classList.add("hidden");
   els.matchesColumns.classList.add("hidden");
+  els.matchesHint.classList.toggle("hidden", state.linked);
+
+  if (!state.linked) return;
 
   const res = await fetch(`/api/matches?user_id=${state.userId}`);
-  if (!res.ok) {
-    alert("Could not load matches.");
-    return;
-  }
+  if (!res.ok) return;
 
   const data = await res.json();
-  if (!data.linked) {
-    alert("Link with a partner to see mutual matches.");
-    return;
-  }
+  if (!data.linked) return;
 
   const { boys, girls } = splitByGender(data.matches);
   const hasMatches = data.matches.length > 0;
@@ -389,8 +711,6 @@ async function loadMatches() {
       "match-rank"
     );
   }
-
-  els.matchesModal.showModal();
 }
 
 function hideAllScreens() {
@@ -404,11 +724,11 @@ function showApp() {
   els.app.classList.remove("hidden");
   els.userLabel.textContent = state.email;
   updatePartnerUI();
+  switchTab("home");
   Promise.all([fetchNextName(), loadPicks()]).catch(() => alert("Failed to load names."));
 }
 
 function showSignIn() {
-  closeSidebar();
   hideAllScreens();
   els.signInScreen.classList.remove("hidden");
   state.userId = null;
@@ -561,6 +881,7 @@ function onPointerDown(event) {
 
   els.card.classList.add("dragging");
   els.card.classList.remove("visible");
+  setActionsEnabled(false);
   els.card.setPointerCapture(event.pointerId);
   event.preventDefault();
 }
@@ -593,6 +914,7 @@ function onPointerUp(event) {
     els.card.classList.remove("dragging");
     els.card.classList.add("visible");
     resetCardTransform();
+    setActionsEnabled(true);
   }
 }
 
@@ -601,26 +923,47 @@ els.card.addEventListener("pointermove", onPointerMove);
 els.card.addEventListener("pointerup", onPointerUp);
 els.card.addEventListener("pointercancel", onPointerUp);
 
-els.menuBtn.addEventListener("click", openSidebar);
-els.closeSidebarBtn.addEventListener("click", closeSidebar);
-els.sidebarOverlay.addEventListener("click", closeSidebar);
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && els.sidebar.classList.contains("open")) {
-    closeSidebar();
+for (const [tab, btn] of Object.entries(els.navBtns)) {
+  btn.addEventListener("click", () => switchTab(tab));
+}
+
+els.surnameInput.addEventListener("input", () => {
+  saveSurname(els.surnameInput.value);
+  if (state.currentName && !els.card.classList.contains("hidden")) {
+    updateCardSurname();
   }
 });
 
 els.signOutBtn.addEventListener("click", showSignIn);
 els.clearPicksBtn.addEventListener("click", clearPicks);
+
+els.recommendForm.addEventListener("submit", submitRecommendation);
+
+els.recommendInput.addEventListener("input", () => {
+  const query = els.recommendInput.value.trim();
+  updateRecommendBtnState();
+  els.recommendFeedback.classList.add("hidden");
+
+  if (query.length < 2) {
+    hideRecommendSuggestions();
+    return;
+  }
+
+  scheduleRecommendSearch(query);
+});
+
+els.recommendInput.addEventListener("blur", () => {
+  setTimeout(hideRecommendSuggestions, 150);
+});
+
+for (const radio of els.recommendForm.querySelectorAll('input[name="recommend-gender"]')) {
+  radio.addEventListener("change", updateRecommendBtnState);
+}
 els.dislikeBtn.addEventListener("click", () => recordSwipe(STATUS_NO));
 els.likeBtn.addEventListener("click", () => recordSwipe(STATUS_YES));
-els.matchesBtn.addEventListener("click", () => {
-  closeSidebar();
-  loadMatches();
-});
-els.closeModal.addEventListener("click", () => els.matchesModal.close());
-
 async function init() {
+  loadSurname();
+
   const inviteToken = getInviteTokenFromUrl();
   if (inviteToken) {
     await showInviteScreen(inviteToken);
@@ -646,6 +989,14 @@ async function init() {
   }
 
   showSignIn();
+}
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      /* offline support is optional */
+    });
+  });
 }
 
 init();

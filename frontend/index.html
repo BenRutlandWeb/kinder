@@ -8,10 +8,22 @@
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
-  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Kinder" />
+  <meta name="theme-color" content="#fff8f7" />
+  <meta name="description" content="Swipe baby names with your partner and find matches you both love." />
 
-  <title>Baby Name Swiper</title>
+  <title>Kinder</title>
 
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+  <link rel="icon" href="/icons/favicon.ico" sizes="32x32" />
+  <link rel="icon" href="/icons/favicon-32.png" type="image/png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="stylesheet" href="/style.css" />
 
 </head>
@@ -20,7 +32,7 @@
 
   <section id="sign-in-screen" class="sign-in-screen">
 
-    <h1>Baby Names</h1>
+    <img src="/icons/logo.svg" alt="Kinder" class="app-logo sign-in-logo" width="118" height="32" />
 
     <p class="sign-in-prompt">Enter your email to get started</p>
 
@@ -32,7 +44,7 @@
 
         id="email-input"
 
-        class="email-input"
+        class="surname-input"
 
         placeholder="you@example.com"
 
@@ -54,7 +66,7 @@
 
   <section id="invite-screen" class="sign-in-screen hidden">
 
-    <h1>Baby Names</h1>
+    <img src="/icons/logo.svg" alt="Kinder" class="app-logo sign-in-logo" width="118" height="32" />
 
     <p class="sign-in-prompt">
 
@@ -70,7 +82,7 @@
 
         id="invite-email-input"
 
-        class="email-input"
+        class="surname-input"
 
         placeholder="you@example.com"
 
@@ -94,206 +106,366 @@
 
   <div id="app" class="app hidden">
 
-    <header class="app-bar">
+    <header class="app-header">
+      <img src="/icons/logo.svg" alt="Kinder" class="app-logo" width="118" height="32" />
+    </header>
 
-      <button type="button" id="menu-btn" class="menu-btn" aria-label="Open menu" aria-expanded="false" aria-controls="sidebar">
+    <div class="tab-panels">
 
-        <span class="menu-icon" aria-hidden="true"></span>
+      <section id="tab-home" class="tab-panel" role="tabpanel" aria-label="Home">
+
+        <main class="main">
+
+          <div class="card-stack">
+
+            <article id="name-card" class="name-card hidden" aria-live="polite">
+
+              <span class="swipe-hint swipe-hint-no">NOPE</span>
+
+              <span class="swipe-hint swipe-hint-yes">LOVE</span>
+
+              <span class="rank" id="name-rank"></span>
+
+              <h2 class="name" id="name-text"></h2>
+
+              <p class="name-surname hidden" id="name-surname"></p>
+
+              <span class="gender-badge" id="gender-badge"></span>
+
+            </article>
+
+            <p id="empty-state" class="empty-state hidden">All done! Check your matches.</p>
+
+            <p id="loading-state" class="loading-state">Loading names…</p>
+
+          </div>
+
+
+
+          <div class="actions">
+
+            <button type="button" id="dislike-btn" class="action-btn dislike" aria-label="No">
+
+              <span class="material-symbols-rounded action-icon" aria-hidden="true">thumb_down</span>
+
+              <span class="label">No</span>
+
+            </button>
+
+            <button type="button" id="like-btn" class="action-btn like" aria-label="Yes">
+
+              <span class="material-symbols-rounded action-icon filled" aria-hidden="true">thumb_up</span>
+
+              <span class="label">Yes</span>
+
+            </button>
+
+          </div>
+
+        </main>
+
+      </section>
+
+
+
+      <section id="tab-picks" class="tab-panel hidden" role="tabpanel" aria-label="Your picks">
+
+        <div class="tab-panel-inner picks-section">
+
+          <h2 id="picks-heading" class="tab-panel-heading">Your picks</h2>
+
+          <div id="picks-columns" class="name-columns hidden">
+
+            <div class="name-column">
+
+              <h3 class="column-heading boy">Boys</h3>
+
+              <ul id="picks-boys-list" class="picks-list picks-list-boys"></ul>
+
+              <p id="no-picks-boys" class="no-picks-column hidden">None yet</p>
+
+            </div>
+
+            <div class="name-column">
+
+              <h3 class="column-heading girl">Girls</h3>
+
+              <ul id="picks-girls-list" class="picks-list picks-list-girls"></ul>
+
+              <p id="no-picks-girls" class="no-picks-column hidden">None yet</p>
+
+            </div>
+
+          </div>
+
+          <p id="no-picks" class="no-picks">No picks yet — swipe right on names you like!</p>
+
+          <div id="recommend-section" class="recommend-section">
+
+            <h3 id="recommend-heading" class="recommend-heading">Add a name</h3>
+
+            <p id="recommend-hint" class="recommend-hint">Add any name to your picks. Known names are matched from the database automatically.</p>
+
+            <form id="recommend-form" class="recommend-form" autocomplete="off">
+
+              <div class="recommend-fields">
+
+                <div class="recommend-input-wrap">
+
+                  <input
+
+                    type="text"
+
+                    id="recommend-input"
+
+                    class="recommend-input"
+
+                    placeholder="Type a name…"
+
+                    maxlength="100"
+
+                  />
+
+                  <ul id="recommend-suggestions" class="recommend-suggestions hidden" role="listbox"></ul>
+
+                </div>
+
+                <div class="recommend-gender" role="radiogroup" aria-label="Name gender">
+
+                  <label class="gender-option boy">
+
+                    <input type="radio" name="recommend-gender" value="M" />
+
+                    <span class="gender-option-icon material-symbols-rounded" aria-hidden="true">male</span>
+
+                    <span class="gender-option-label">Boy</span>
+
+                  </label>
+
+                  <label class="gender-option girl">
+
+                    <input type="radio" name="recommend-gender" value="F" />
+
+                    <span class="gender-option-icon material-symbols-rounded" aria-hidden="true">female</span>
+
+                    <span class="gender-option-label">Girl</span>
+
+                  </label>
+
+                </div>
+
+              </div>
+
+              <button type="submit" id="recommend-btn" class="recommend-btn" disabled>
+
+                <span class="material-symbols-rounded" aria-hidden="true">send</span>
+
+                <span id="recommend-btn-label">Add</span>
+
+              </button>
+
+            </form>
+
+            <p id="recommend-feedback" class="recommend-feedback hidden"></p>
+
+            <div id="sent-recommendations" class="sent-recommendations hidden">
+
+              <h4 class="sent-recommendations-heading">Sent to partner</h4>
+
+              <div id="sent-recommendations-columns" class="name-columns">
+
+                <div class="name-column">
+
+                  <h3 class="column-heading boy">Boys</h3>
+
+                  <ul id="sent-boys-list" class="picks-list picks-list-boys"></ul>
+
+                  <p id="no-sent-boys" class="no-picks-column hidden">None yet</p>
+
+                </div>
+
+                <div class="name-column">
+
+                  <h3 class="column-heading girl">Girls</h3>
+
+                  <ul id="sent-girls-list" class="picks-list picks-list-girls"></ul>
+
+                  <p id="no-sent-girls" class="no-picks-column hidden">None yet</p>
+
+                </div>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+
+      <section id="tab-matches" class="tab-panel hidden" role="tabpanel" aria-label="Matches">
+
+        <div class="tab-panel-inner matches-section">
+
+          <h2 class="tab-panel-heading">Matches</h2>
+
+          <p id="matches-hint" class="matches-hint hidden">Link with a partner in Settings to see matches.</p>
+
+          <div id="matches-columns" class="name-columns matches-columns hidden">
+
+            <div class="name-column">
+
+              <h3 class="column-heading boy">Boys</h3>
+
+              <ul id="matches-boys-list" class="matches-list picks-list-boys"></ul>
+
+              <p id="no-matches-boys" class="no-picks-column hidden">None yet</p>
+
+            </div>
+
+            <div class="name-column">
+
+              <h3 class="column-heading girl">Girls</h3>
+
+              <ul id="matches-girls-list" class="matches-list picks-list-girls"></ul>
+
+              <p id="no-matches-girls" class="no-picks-column hidden">None yet</p>
+
+            </div>
+
+          </div>
+
+          <p id="no-matches" class="no-matches hidden">No mutual likes yet — keep swiping!</p>
+
+        </div>
+
+      </section>
+
+
+
+      <section id="tab-settings" class="tab-panel hidden" role="tabpanel" aria-label="Settings">
+
+        <div class="tab-panel-inner settings-section">
+
+          <h2 class="tab-panel-heading">Settings</h2>
+
+          <p class="swiping-as">Swiping as <strong id="current-user-label"></strong></p>
+
+          <div class="surname-field">
+            <label for="surname-input" class="surname-label">Surname</label>
+            <input
+              type="text"
+              id="surname-input"
+              class="surname-input"
+              placeholder="Optional — preview on cards"
+              autocomplete="family-name"
+              maxlength="50"
+            />
+          </div>
+
+          <div id="partner-section" class="partner-section">
+
+            <div id="partner-linked" class="partner-status hidden">
+
+              <span>Linked with <strong id="partner-email"></strong></span>
+
+              <button type="button" id="unlink-btn" class="text-btn">Unlink</button>
+
+            </div>
+
+            <div id="partner-pending" class="partner-status hidden">
+              <span>Waiting for your partner to accept</span>
+              <button type="button" id="reshare-btn" class="invite-btn">
+                <span class="material-symbols-rounded" aria-hidden="true">share</span>
+                Share link again
+              </button>
+            </div>
+
+            <div id="invite-partner-section" class="invite-partner-form hidden">
+              <p class="partner-prompt">Invite your partner to see matches</p>
+              <button type="button" id="share-invite-btn" class="sign-in-btn share-invite-btn">
+                <span class="material-symbols-rounded" aria-hidden="true">share</span>
+                Share invite link
+              </button>
+              <p id="invite-feedback" class="invite-feedback hidden"></p>
+            </div>
+
+          </div>
+
+          <div class="settings-actions">
+
+            <button type="button" id="clear-picks-btn" class="settings-action-btn settings-action-btn-danger" disabled>
+              <span class="material-symbols-rounded" aria-hidden="true">delete_sweep</span>
+              Clear picks
+            </button>
+
+            <button type="button" id="sign-out-btn" class="sign-out-btn">
+              <span class="material-symbols-rounded" aria-hidden="true">logout</span>
+              Log out
+            </button>
+
+          </div>
+
+        </div>
+
+      </section>
+
+    </div>
+
+
+
+    <nav class="bottom-nav" aria-label="Main navigation">
+
+      <button type="button" id="nav-home" class="bottom-nav-btn active" aria-label="Home" aria-current="page">
+
+        <span class="nav-icon-slot">
+          <span class="nav-indicator" aria-hidden="true"></span>
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">cards_stack</span>
+        </span>
+
+        <span class="nav-label">Home</span>
 
       </button>
 
-      <h1 class="app-bar-title">Baby Names</h1>
+      <button type="button" id="nav-picks" class="bottom-nav-btn" aria-label="Your picks">
 
-      <div class="app-bar-spacer" aria-hidden="true"></div>
+        <span class="nav-icon-slot">
+          <span class="nav-indicator" aria-hidden="true"></span>
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">thumb_up</span>
+        </span>
 
-    </header>
+        <span class="nav-label">Your picks</span>
 
+      </button>
 
+      <button type="button" id="nav-matches" class="bottom-nav-btn" aria-label="Matches">
 
-    <div id="sidebar-overlay" class="sidebar-overlay hidden" aria-hidden="true"></div>
+        <span class="nav-icon-slot">
+          <span class="nav-indicator" aria-hidden="true"></span>
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">thumbs_up_double</span>
+        </span>
 
-    <aside id="sidebar" class="sidebar" aria-label="Account menu" aria-hidden="true">
+        <span class="nav-label">Matches</span>
 
-      <div class="sidebar-header">
+      </button>
 
-        <h2 class="sidebar-title">Account</h2>
+      <button type="button" id="nav-settings" class="bottom-nav-btn" aria-label="Settings">
 
-        <button type="button" id="close-sidebar-btn" class="close-sidebar-btn" aria-label="Close menu">&times;</button>
+        <span class="nav-icon-slot">
+          <span class="nav-indicator" aria-hidden="true"></span>
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">person</span>
+        </span>
 
-      </div>
+        <span class="nav-label">Settings</span>
 
+      </button>
 
-
-      <p class="swiping-as">Swiping as <strong id="current-user-label"></strong></p>
-
-
-
-      <div id="partner-section" class="partner-section">
-
-        <div id="partner-linked" class="partner-status hidden">
-
-          <span>Linked with <strong id="partner-email"></strong></span>
-
-          <button type="button" id="unlink-btn" class="text-btn">Unlink</button>
-
-        </div>
-
-        <div id="partner-pending" class="partner-status hidden">
-          <span>Waiting for your partner to accept</span>
-          <button type="button" id="reshare-btn" class="invite-btn">Share link again</button>
-        </div>
-
-        <div id="invite-partner-section" class="invite-partner-form hidden">
-          <p class="partner-prompt">Invite your partner to see mutual matches</p>
-          <button type="button" id="share-invite-btn" class="sign-in-btn share-invite-btn">Share invite link</button>
-          <p id="invite-feedback" class="invite-feedback hidden"></p>
-        </div>
-
-      </div>
-
-
-
-      <div class="sidebar-actions">
-
-        <button type="button" id="matches-btn" class="sidebar-action-btn">View Matches</button>
-
-        <p id="matches-hint" class="matches-hint hidden">Link with a partner to see mutual matches</p>
-
-        <button type="button" id="clear-picks-btn" class="sidebar-action-btn sidebar-action-btn-danger">Clear picks</button>
-
-        <button type="button" id="sign-out-btn" class="sign-out-btn">Log out</button>
-
-      </div>
-
-    </aside>
-
-
-
-    <main class="main">
-
-      <div class="card-stack">
-
-        <article id="name-card" class="name-card hidden" aria-live="polite">
-
-          <span class="swipe-hint swipe-hint-no">NOPE</span>
-
-          <span class="swipe-hint swipe-hint-yes">LOVE</span>
-
-          <span class="rank" id="name-rank"></span>
-
-          <h2 class="name" id="name-text"></h2>
-
-          <span class="gender-badge" id="gender-badge"></span>
-
-        </article>
-
-        <p id="empty-state" class="empty-state hidden">All done! Check your matches.</p>
-
-        <p id="loading-state" class="loading-state">Loading names…</p>
-
-      </div>
-
-
-
-      <div class="actions">
-
-        <button type="button" id="dislike-btn" class="action-btn dislike" aria-label="No">
-
-          <span class="icon">✕</span>
-
-          <span class="label">No</span>
-
-        </button>
-
-        <button type="button" id="like-btn" class="action-btn like" aria-label="Yes">
-
-          <span class="icon">♥</span>
-
-          <span class="label">Yes</span>
-
-        </button>
-
-      </div>
-
-    </main>
-
-
-
-    <section class="picks-section" aria-labelledby="picks-heading">
-
-      <h2 id="picks-heading" class="picks-heading">Your picks</h2>
-
-      <div id="picks-columns" class="name-columns hidden">
-
-        <div class="name-column">
-
-          <h3 class="column-heading boy">Boys</h3>
-
-          <ul id="picks-boys-list" class="picks-list"></ul>
-
-          <p id="no-picks-boys" class="no-picks-column hidden">None yet</p>
-
-        </div>
-
-        <div class="name-column">
-
-          <h3 class="column-heading girl">Girls</h3>
-
-          <ul id="picks-girls-list" class="picks-list"></ul>
-
-          <p id="no-picks-girls" class="no-picks-column hidden">None yet</p>
-
-        </div>
-
-      </div>
-
-      <p id="no-picks" class="no-picks">No picks yet — swipe right on names you like!</p>
-
-    </section>
-
-
+    </nav>
 
   </div>
-
-
-
-  <dialog id="matches-modal" class="matches-modal">
-
-    <div class="modal-header">
-
-      <h2>Mutual Matches</h2>
-
-      <button type="button" id="close-modal" class="close-btn" aria-label="Close">&times;</button>
-
-    </div>
-
-    <div id="matches-columns" class="name-columns matches-columns hidden">
-
-      <div class="name-column">
-
-        <h3 class="column-heading boy">Boys</h3>
-
-        <ul id="matches-boys-list" class="matches-list"></ul>
-
-        <p id="no-matches-boys" class="no-picks-column hidden">None yet</p>
-
-      </div>
-
-      <div class="name-column">
-
-        <h3 class="column-heading girl">Girls</h3>
-
-        <ul id="matches-girls-list" class="matches-list"></ul>
-
-        <p id="no-matches-girls" class="no-picks-column hidden">None yet</p>
-
-      </div>
-
-    </div>
-
-    <p id="no-matches" class="no-matches">No mutual likes yet — keep swiping!</p>
-
-  </dialog>
 
 
 
@@ -302,5 +474,4 @@
 </body>
 
 </html>
-
 

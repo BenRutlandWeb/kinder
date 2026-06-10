@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Query
 
 from fastapi.staticfiles import StaticFiles
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 
@@ -46,7 +46,7 @@ async def lifespan(_: FastAPI):
 
 
 
-app = FastAPI(title="Baby Name Swiper", lifespan=lifespan)
+app = FastAPI(title="Kinder", lifespan=lifespan)
 
 
 
@@ -56,9 +56,27 @@ class SwipeRequest(BaseModel):
 
     user_id: int = Field(..., ge=1)
 
-    name_id: int = Field(..., ge=1)
+    name_id: int | None = Field(None, ge=1)
+
+    custom_id: int | None = Field(None, ge=1)
 
     status: int = Field(..., ge=1, le=2)
+
+
+
+    @model_validator(mode="after")
+
+    def require_name_or_custom(self):
+
+        if self.name_id is None and self.custom_id is None:
+
+            raise ValueError("Either name_id or custom_id is required")
+
+        if self.name_id is not None and self.custom_id is not None:
+
+            raise ValueError("Provide only one of name_id or custom_id")
+
+        return self
 
 
 
@@ -102,6 +120,100 @@ class UnlinkRequest(BaseModel):
 
 
 
+
+
+class RecommendRequest(BaseModel):
+
+    user_id: int = Field(..., ge=1)
+
+    name: str = Field(..., min_length=1, max_length=100)
+
+    gender: str = Field(..., pattern=r"^[MF]$")
+
+
+
+    @field_validator("name")
+
+    @classmethod
+
+    def normalize_name(cls, value: str) -> str:
+
+        return value.strip().title()
+
+
+
+
+
+async def _recommender_already_sent(db, recommender_id: int, name: str) -> bool:
+
+    cursor = await db.execute(
+
+        """
+
+        SELECT 1 FROM custom_recommendations
+
+        WHERE recommender_id = ? AND name = ? COLLATE NOCASE
+
+        LIMIT 1
+
+        """,
+
+        (recommender_id, name),
+
+    )
+
+    if await cursor.fetchone() is not None:
+
+        return True
+
+
+
+    cursor = await db.execute(
+
+        """
+
+        SELECT 1
+
+        FROM recommendations r
+
+        INNER JOIN names n ON n.id = r.name_id
+
+        WHERE r.recommender_id = ? AND n.name = ? COLLATE NOCASE
+
+        LIMIT 1
+
+        """,
+
+        (recommender_id, name),
+
+    )
+
+    return await cursor.fetchone() is not None
+
+
+async def _user_already_liked_name(db, user_id: int, name: str) -> bool:
+    cursor = await db.execute(
+        """
+        SELECT 1 FROM user_custom_picks
+        WHERE user_id = ? AND name = ? COLLATE NOCASE
+        LIMIT 1
+        """,
+        (user_id, name),
+    )
+    if await cursor.fetchone() is not None:
+        return True
+
+    cursor = await db.execute(
+        """
+        SELECT 1
+        FROM swipes s
+        INNER JOIN names n ON n.id = s.name_id
+        WHERE s.user_id = ? AND s.status = 1 AND n.name = ? COLLATE NOCASE
+        LIMIT 1
+        """,
+        (user_id, name),
+    )
+    return await cursor.fetchone() is not None
 
 
 async def _get_user_row(db, user_id: int):
@@ -478,6 +590,34 @@ async def unlink(body: UnlinkRequest):
 
         )
 
+        await db.execute(
+
+            """
+
+            DELETE FROM recommendations
+
+            WHERE recipient_id IN (?, ?) OR recommender_id IN (?, ?)
+
+            """,
+
+            (body.user_id, partner_id, body.user_id, partner_id),
+
+        )
+
+        await db.execute(
+
+            """
+
+            DELETE FROM custom_recommendations
+
+            WHERE recipient_id IN (?, ?) OR recommender_id IN (?, ?)
+
+            """,
+
+            (body.user_id, partner_id, body.user_id, partner_id),
+
+        )
+
         await db.commit()
 
 
@@ -487,6 +627,26 @@ async def unlink(body: UnlinkRequest):
     finally:
 
         await db.close()
+
+
+
+
+
+def _format_next_name(row) -> dict:
+
+    return {
+
+        "id": row["id"],
+
+        "name": row["name"],
+
+        "gender": row["gender"],
+
+        "rank": row["rank"],
+
+        "custom": row["source"] == "custom",
+
+    }
 
 
 
@@ -504,23 +664,47 @@ async def next_name(user_id: int = Query(..., ge=1)):
 
             """
 
-            SELECT n.id, n.name, n.gender, n.rank
+            SELECT 'custom' AS source, cr.id AS id, cr.name AS name,
 
-            FROM names n
+                   cr.gender AS gender, NULL AS rank, cr.created_at
 
-            WHERE n.id NOT IN (
+            FROM custom_recommendations cr
 
-                SELECT s.name_id FROM swipes s WHERE s.user_id = ?
+            WHERE cr.recipient_id = ?
 
-            )
+              AND cr.id NOT IN (
 
-            ORDER BY RANDOM()
+                  SELECT cs.custom_recommendation_id
+
+                  FROM custom_swipes cs WHERE cs.user_id = ?
+
+              )
+
+            UNION ALL
+
+            SELECT 'db' AS source, n.id AS id, n.name AS name,
+
+                   n.gender AS gender, n.rank AS rank, r.created_at
+
+            FROM recommendations r
+
+            INNER JOIN names n ON n.id = r.name_id
+
+            WHERE r.recipient_id = ?
+
+              AND n.id NOT IN (
+
+                  SELECT s.name_id FROM swipes s WHERE s.user_id = ?
+
+              )
+
+            ORDER BY created_at DESC
 
             LIMIT 1
 
             """,
 
-            (user_id,),
+            (user_id, user_id, user_id, user_id),
 
         )
 
@@ -528,19 +712,39 @@ async def next_name(user_id: int = Query(..., ge=1)):
 
         if row is None:
 
+            cursor = await db.execute(
+
+                """
+
+                SELECT 'db' AS source, n.id AS id, n.name AS name,
+
+                       n.gender AS gender, n.rank AS rank, NULL AS created_at
+
+                FROM names n
+
+                WHERE n.id NOT IN (
+
+                    SELECT s.name_id FROM swipes s WHERE s.user_id = ?
+
+                )
+
+                ORDER BY RANDOM()
+
+                LIMIT 1
+
+                """,
+
+                (user_id,),
+
+            )
+
+            row = await cursor.fetchone()
+
+        if row is None:
+
             raise HTTPException(status_code=404, detail="No more names to swipe")
 
-        return {
-
-            "id": row["id"],
-
-            "name": row["name"],
-
-            "gender": row["gender"],
-
-            "rank": row["rank"],
-
-        }
+        return _format_next_name(row)
 
     finally:
 
@@ -566,29 +770,97 @@ async def swipe(body: SwipeRequest):
 
 
 
-        cursor = await db.execute("SELECT id FROM names WHERE id = ?", (body.name_id,))
+        if body.custom_id is not None:
 
-        if await cursor.fetchone() is None:
+            cursor = await db.execute(
 
-            raise HTTPException(status_code=404, detail="Name not found")
+                """
+
+                SELECT id, name, gender FROM custom_recommendations
+
+                WHERE id = ? AND recipient_id = ?
+
+                """,
+
+                (body.custom_id, body.user_id),
+
+            )
+
+            custom_row = await cursor.fetchone()
+
+            if custom_row is None:
+
+                raise HTTPException(status_code=404, detail="Recommendation not found")
 
 
 
-        await db.execute(
+            await db.execute(
 
-            """
+                """
 
-            INSERT INTO swipes (user_id, name_id, status)
+                INSERT INTO custom_swipes (user_id, custom_recommendation_id, status)
 
-            VALUES (?, ?, ?)
+                VALUES (?, ?, ?)
 
-            ON CONFLICT(user_id, name_id) DO UPDATE SET status = excluded.status
+                ON CONFLICT(user_id, custom_recommendation_id)
 
-            """,
+                DO UPDATE SET status = excluded.status
 
-            (body.user_id, body.name_id, body.status),
+                """,
 
-        )
+                (body.user_id, body.custom_id, body.status),
+
+            )
+
+
+
+            if body.status == 1:
+
+                await db.execute(
+
+                    """
+
+                    INSERT INTO user_custom_picks (user_id, name, gender)
+
+                    VALUES (?, ?, ?)
+
+                    ON CONFLICT(user_id, name) DO UPDATE SET gender = excluded.gender
+
+                    """,
+
+                    (body.user_id, custom_row["name"], custom_row["gender"]),
+
+                )
+
+        else:
+
+            cursor = await db.execute(
+
+                "SELECT id FROM names WHERE id = ?", (body.name_id,)
+
+            )
+
+            if await cursor.fetchone() is None:
+
+                raise HTTPException(status_code=404, detail="Name not found")
+
+
+
+            await db.execute(
+
+                """
+
+                INSERT INTO swipes (user_id, name_id, status)
+
+                VALUES (?, ?, ?)
+
+                ON CONFLICT(user_id, name_id) DO UPDATE SET status = excluded.status
+
+                """,
+
+                (body.user_id, body.name_id, body.status),
+
+            )
 
         await db.commit()
 
@@ -626,9 +898,349 @@ async def clear_picks(body: UnlinkRequest):
 
         )
 
+        deleted = cursor.rowcount
+
+        await db.execute(
+
+            "DELETE FROM user_custom_picks WHERE user_id = ?",
+
+            (body.user_id,),
+
+        )
+
         await db.commit()
 
-        return {"ok": True, "deleted": cursor.rowcount}
+        return {"ok": True, "deleted": deleted}
+
+    finally:
+
+        await db.close()
+
+
+
+
+
+@app.get("/api/names/search")
+
+async def search_names(
+
+    q: str = Query(..., min_length=1, max_length=100),
+
+    limit: int = Query(10, ge=1, le=20),
+
+):
+
+    db = await get_db()
+
+    try:
+
+        cursor = await db.execute(
+
+            """
+
+            SELECT id, name, gender, rank
+
+            FROM names
+
+            WHERE name LIKE ? COLLATE NOCASE
+
+            ORDER BY rank ASC
+
+            LIMIT ?
+
+            """,
+
+            (f"%{q.strip()}%", limit),
+
+        )
+
+        rows = await cursor.fetchall()
+
+        return [
+
+            {
+
+                "id": row["id"],
+
+                "name": row["name"],
+
+                "gender": row["gender"],
+
+                "rank": row["rank"],
+
+            }
+
+            for row in rows
+
+        ]
+
+    finally:
+
+        await db.close()
+
+
+
+
+
+@app.post("/api/recommend")
+
+async def recommend(body: RecommendRequest):
+
+    db = await get_db()
+
+    try:
+
+        user = await _get_user_row(db, body.user_id)
+
+        if user is None:
+
+            raise HTTPException(status_code=404, detail="User not found")
+
+
+
+        cursor = await db.execute(
+
+            """
+
+            SELECT id FROM names
+
+            WHERE name = ? COLLATE NOCASE AND gender = ?
+
+            ORDER BY rank ASC
+
+            LIMIT 1
+
+            """,
+
+            (body.name, body.gender),
+
+        )
+
+        name_row = await cursor.fetchone()
+
+
+
+        if user["partner_id"] is None:
+
+            if await _user_already_liked_name(db, body.user_id, body.name):
+
+                raise HTTPException(
+
+                    status_code=409, detail="You already have this name in your picks"
+
+                )
+
+
+
+            if name_row is not None:
+
+                await db.execute(
+
+                    """
+
+                    INSERT INTO swipes (user_id, name_id, status)
+
+                    VALUES (?, ?, 1)
+
+                    ON CONFLICT(user_id, name_id) DO UPDATE SET status = 1
+
+                    """,
+
+                    (body.user_id, name_row["id"]),
+
+                )
+
+            else:
+
+                await db.execute(
+
+                    """
+
+                    INSERT INTO user_custom_picks (user_id, name, gender)
+
+                    VALUES (?, ?, ?)
+
+                    ON CONFLICT(user_id, name) DO UPDATE SET gender = excluded.gender
+
+                    """,
+
+                    (body.user_id, body.name, body.gender),
+
+                )
+
+
+
+            await db.commit()
+
+            return {"ok": True}
+
+
+
+        partner_id = user["partner_id"]
+
+
+
+        if await _recommender_already_sent(db, body.user_id, body.name):
+
+            raise HTTPException(
+
+                status_code=409, detail="You already recommended this name"
+
+            )
+
+
+
+        if name_row is not None:
+
+            name_id = name_row["id"]
+
+            await db.execute(
+
+                """
+
+                INSERT INTO recommendations (recipient_id, name_id, recommender_id)
+
+                VALUES (?, ?, ?)
+
+                """,
+
+                (partner_id, name_id, body.user_id),
+
+            )
+
+            await db.execute(
+
+                """
+
+                INSERT INTO swipes (user_id, name_id, status)
+
+                VALUES (?, ?, 1)
+
+                ON CONFLICT(user_id, name_id) DO UPDATE SET status = 1
+
+                """,
+
+                (body.user_id, name_id),
+
+            )
+
+            await db.execute(
+
+                """
+
+                DELETE FROM custom_recommendations
+
+                WHERE recipient_id = ? AND name = ? COLLATE NOCASE
+
+                """,
+
+                (partner_id, body.name),
+
+            )
+
+        else:
+
+            await db.execute(
+
+                """
+
+                INSERT INTO custom_recommendations
+
+                    (recipient_id, recommender_id, name, gender)
+
+                VALUES (?, ?, ?, ?)
+
+                """,
+
+                (partner_id, body.user_id, body.name, body.gender),
+
+            )
+
+            await db.execute(
+
+                """
+
+                INSERT INTO user_custom_picks (user_id, name, gender)
+
+                VALUES (?, ?, ?)
+
+                ON CONFLICT(user_id, name) DO UPDATE SET gender = excluded.gender
+
+                """,
+
+                (body.user_id, body.name, body.gender),
+
+            )
+
+        await db.commit()
+
+        return {"ok": True}
+
+    finally:
+
+        await db.close()
+
+
+
+
+
+@app.get("/api/recommendations")
+
+async def recommendations(user_id: int = Query(..., ge=1)):
+
+    db = await get_db()
+
+    try:
+
+        cursor = await db.execute(
+
+            """
+
+            SELECT n.id, n.name, n.gender, n.rank, r.created_at, 0 AS custom
+
+            FROM recommendations r
+
+            INNER JOIN names n ON n.id = r.name_id
+
+            WHERE r.recommender_id = ?
+
+            UNION ALL
+
+            SELECT cr.id, cr.name, cr.gender AS gender, NULL AS rank, cr.created_at, 1 AS custom
+
+            FROM custom_recommendations cr
+
+            WHERE cr.recommender_id = ?
+
+            ORDER BY created_at DESC
+
+            """,
+
+            (user_id, user_id),
+
+        )
+
+        rows = await cursor.fetchall()
+
+        return [
+
+            {
+
+                "id": row["id"],
+
+                "name": row["name"],
+
+                "gender": row["gender"],
+
+                "rank": row["rank"],
+
+                "custom": bool(row["custom"]),
+
+            }
+
+            for row in rows
+
+        ]
 
     finally:
 
@@ -650,17 +1262,35 @@ async def likes(user_id: int = Query(..., ge=1)):
 
             """
 
-            SELECT n.id, n.name, n.gender, n.rank
+            SELECT id, name, gender, rank
 
-            FROM names n
+            FROM (
 
-            INNER JOIN swipes s ON s.name_id = n.id AND s.user_id = ? AND s.status = 1
+                SELECT n.id, n.name, n.gender, n.rank
 
-            ORDER BY n.rank ASC
+                FROM names n
+
+                INNER JOIN swipes s ON s.name_id = n.id AND s.user_id = ? AND s.status = 1
+
+
+
+                UNION ALL
+
+
+
+                SELECT NULL AS id, name, gender, NULL AS rank
+
+                FROM user_custom_picks
+
+                WHERE user_id = ?
+
+            )
+
+            ORDER BY rank IS NULL, rank ASC, name ASC
 
             """,
 
-            (user_id,),
+            (user_id, user_id),
 
         )
 
@@ -714,6 +1344,8 @@ async def matches(user_id: int = Query(..., ge=1)):
 
 
 
+        partner_id = user["partner_id"]
+
         cursor = await db.execute(
 
             """
@@ -726,11 +1358,75 @@ async def matches(user_id: int = Query(..., ge=1)):
 
             INNER JOIN swipes s2 ON s2.name_id = n.id AND s2.user_id = ? AND s2.status = 1
 
-            ORDER BY n.rank ASC
+
+
+            UNION
+
+
+
+            SELECT n.id, n.name, n.gender, n.rank
+
+            FROM recommendations r
+
+            INNER JOIN names n ON n.id = r.name_id
+
+            INNER JOIN swipes s ON s.name_id = n.id AND s.user_id = r.recipient_id AND s.status = 1
+
+            WHERE (r.recommender_id = ? AND r.recipient_id = ?)
+
+               OR (r.recommender_id = ? AND r.recipient_id = ?)
+
+
+
+            UNION
+
+
+
+            SELECT cr.id AS id, cr.name AS name, cr.gender AS gender, NULL AS rank
+
+            FROM custom_recommendations cr
+
+            INNER JOIN custom_swipes cs
+
+                ON cs.custom_recommendation_id = cr.id
+
+               AND cs.user_id = cr.recipient_id
+
+               AND cs.status = 1
+
+            WHERE (cr.recommender_id = ? AND cr.recipient_id = ?)
+
+               OR (cr.recommender_id = ? AND cr.recipient_id = ?)
+
+
+
+            ORDER BY rank ASC, name ASC
 
             """,
 
-            (user_id, user["partner_id"]),
+            (
+
+                user_id,
+
+                partner_id,
+
+                user_id,
+
+                partner_id,
+
+                partner_id,
+
+                user_id,
+
+                user_id,
+
+                partner_id,
+
+                partner_id,
+
+                user_id,
+
+            ),
 
         )
 

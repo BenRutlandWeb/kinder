@@ -31,6 +31,25 @@ async def get_db() -> aiosqlite.Connection:
 
 
 
+async def _migrate_custom_recommendations_table(db: aiosqlite.Connection) -> None:
+    cursor = await db.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='custom_recommendations'"
+    )
+    if await cursor.fetchone() is None:
+        return
+
+    cursor = await db.execute("PRAGMA table_info(custom_recommendations)")
+    cols = {row[1] for row in await cursor.fetchall()}
+
+    if "gender" not in cols:
+        await db.execute(
+            "ALTER TABLE custom_recommendations ADD COLUMN gender TEXT DEFAULT 'M'"
+        )
+        await db.execute(
+            "UPDATE custom_recommendations SET gender = 'M' WHERE gender IS NULL"
+        )
+
+
 async def _migrate_users_table(db: aiosqlite.Connection) -> None:
 
     cursor = await db.execute("PRAGMA table_info(users)")
@@ -160,6 +179,86 @@ async def init_db() -> None:
 
             );
 
+
+
+            CREATE TABLE IF NOT EXISTS recommendations (
+
+                recipient_id INTEGER NOT NULL,
+
+                name_id INTEGER NOT NULL,
+
+                recommender_id INTEGER NOT NULL,
+
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+
+                PRIMARY KEY (recipient_id, name_id),
+
+                FOREIGN KEY (recipient_id) REFERENCES users(id),
+
+                FOREIGN KEY (name_id) REFERENCES names(id),
+
+                FOREIGN KEY (recommender_id) REFERENCES users(id)
+
+            );
+
+
+
+            CREATE TABLE IF NOT EXISTS custom_recommendations (
+
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                recipient_id INTEGER NOT NULL,
+
+                recommender_id INTEGER NOT NULL,
+
+                name TEXT NOT NULL,
+
+                gender TEXT NOT NULL CHECK (gender IN ('M', 'F')),
+
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+
+                UNIQUE (recipient_id, name COLLATE NOCASE),
+
+                FOREIGN KEY (recipient_id) REFERENCES users(id),
+
+                FOREIGN KEY (recommender_id) REFERENCES users(id)
+
+            );
+
+
+
+            CREATE TABLE IF NOT EXISTS user_custom_picks (
+
+                user_id INTEGER NOT NULL,
+
+                name TEXT NOT NULL,
+
+                gender TEXT NOT NULL CHECK (gender IN ('M', 'F')),
+
+                PRIMARY KEY (user_id, name COLLATE NOCASE),
+
+                FOREIGN KEY (user_id) REFERENCES users(id)
+
+            );
+
+
+
+            CREATE TABLE IF NOT EXISTS custom_swipes (
+
+                user_id INTEGER NOT NULL,
+
+                custom_recommendation_id INTEGER NOT NULL,
+
+                status INTEGER NOT NULL CHECK (status IN (1, 2)),
+
+                PRIMARY KEY (user_id, custom_recommendation_id),
+
+                FOREIGN KEY (user_id) REFERENCES users(id),
+
+                FOREIGN KEY (custom_recommendation_id) REFERENCES custom_recommendations(id)
+
+            );
+
             """
 
         )
@@ -167,6 +266,8 @@ async def init_db() -> None:
 
 
         await _migrate_users_table(db)
+
+        await _migrate_custom_recommendations_table(db)
 
 
 
