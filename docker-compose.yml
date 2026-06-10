@@ -8,10 +8,14 @@ services:
       - ./sample-data:/sample-data:ro
       - ./frontend:/app/frontend
       - ./app:/app/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      - ./certs:/certs
+    command: ["--reload"]
     environment:
       DATA_DIR: /data
-      BASE_URL: ${BASE_URL:-http://localhost:8487}
+      # Set ENABLE_TLS=1 for PWA install, offline, and native share on LAN IPs.
+      ENABLE_TLS: ${ENABLE_TLS:-1}
+      TLS_SAN_HOSTS: ${TLS_SAN_HOSTS:-localhost,127.0.0.1}
+      BASE_URL: ${BASE_URL:-https://localhost:8487}
     restart: unless-stopped
 
   import-girls:
