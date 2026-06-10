@@ -52,7 +52,6 @@ const els = {
   card: document.getElementById("name-card"),
   nameText: document.getElementById("name-text"),
   nameSurname: document.getElementById("name-surname"),
-  nameRank: document.getElementById("name-rank"),
   genderBadge: document.getElementById("gender-badge"),
   emptyState: document.getElementById("empty-state"),
   loadingState: document.getElementById("loading-state"),
@@ -73,6 +72,9 @@ const els = {
   noPicks: document.getElementById("no-picks"),
   clearPicksBtn: document.getElementById("clear-picks-btn"),
   deleteAccountBtn: document.getElementById("delete-account-btn"),
+  installAppSection: document.getElementById("install-app-section"),
+  installAppBtn: document.getElementById("install-app-btn"),
+  installIosHint: document.getElementById("install-ios-hint"),
   settingsActions: document.querySelector(".settings-actions"),
   confirmDialog: document.getElementById("confirm-dialog"),
   confirmDialogTitle: document.getElementById("confirm-dialog-title"),
@@ -109,6 +111,65 @@ const els = {
 };
 
 let confirmResolve = null;
+let deferredInstallPrompt = null;
+
+function isStandaloneDisplay() {
+  return (
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true
+  );
+}
+
+function isIosDevice() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+function updateInstallAppSection() {
+  if (!els.installAppSection) return;
+
+  if (isStandaloneDisplay()) {
+    els.installAppSection.classList.add("hidden");
+    return;
+  }
+
+  const canInstall = Boolean(deferredInstallPrompt) || isIosDevice();
+  els.installAppSection.classList.toggle("hidden", !canInstall);
+  els.installIosHint?.classList.toggle("hidden", !isIosDevice() || Boolean(deferredInstallPrompt));
+}
+
+async function handleInstallApp() {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    updateInstallAppSection();
+    return;
+  }
+
+  if (isIosDevice()) {
+    els.installIosHint?.classList.remove("hidden");
+    els.installIosHint?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+}
+
+function initPwaInstall() {
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+    updateInstallAppSection();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    deferredInstallPrompt = null;
+    updateInstallAppSection();
+  });
+
+  els.installAppBtn?.addEventListener("click", () => {
+    void handleInstallApp();
+  });
+
+  updateInstallAppSection();
+}
 
 function showConfirmDialog({ title, message, confirmLabel = "Confirm", danger = false }) {
   if (!els.confirmDialog || typeof els.confirmDialog.showModal !== "function") {
@@ -434,8 +495,6 @@ function showCard(name) {
   els.card.classList.add(isBoy ? "boy" : "girl", "entering");
   els.nameText.textContent = name.name;
   updateCardSurname();
-  els.nameRank.textContent = name.rank ? `#${name.rank}` : "";
-  els.nameRank.classList.toggle("hidden", !name.rank);
   els.genderBadge.textContent = isBoy ? "Boy" : "Girl";
   els.genderBadge.classList.remove("hidden");
 
@@ -526,20 +585,19 @@ function splitByGender(names) {
   };
 }
 
-function renderNameList(container, names, nameClass, rankClass) {
+function renderNameList(container, names, nameClass) {
   container.innerHTML = "";
   for (const item of names) {
     const li = document.createElement("li");
     li.className = item.gender === "M" ? "boy" : "girl";
-    const rankHtml = item.rank ? `<span class="${rankClass}">#${item.rank}</span>` : "";
-    li.innerHTML = `<span class="${nameClass}">${item.name}</span>${rankHtml}`;
+    li.innerHTML = `<span class="${nameClass}">${item.name}</span>`;
     container.appendChild(li);
   }
 }
 
-function renderGenderColumns({ boys, girls }, lists, emptyEls, nameClass, rankClass) {
-  renderNameList(lists.boys, boys, nameClass, rankClass);
-  renderNameList(lists.girls, girls, nameClass, rankClass);
+function renderGenderColumns({ boys, girls }, lists, emptyEls, nameClass) {
+  renderNameList(lists.boys, boys, nameClass);
+  renderNameList(lists.girls, girls, nameClass);
 
   lists.boys.classList.toggle("hidden", boys.length === 0);
   lists.girls.classList.toggle("hidden", girls.length === 0);
@@ -661,7 +719,7 @@ function renderRecommendSuggestions(items) {
     const li = document.createElement("li");
     li.className = item.gender === "M" ? "boy" : "girl";
     li.setAttribute("role", "option");
-    li.innerHTML = `<span class="suggestion-name">${item.name}</span><span class="suggestion-meta">${item.gender === "M" ? "Boy" : "Girl"} · #${item.rank}</span>`;
+    li.innerHTML = `<span class="suggestion-name">${item.name}</span><span class="suggestion-meta">${item.gender === "M" ? "Boy" : "Girl"}</span>`;
     li.addEventListener("mousedown", (e) => {
       e.preventDefault();
       selectRecommendName(item);
@@ -750,8 +808,7 @@ async function loadSentRecommendations() {
     { boys, girls },
     { boys: els.sentBoysList, girls: els.sentGirlsList },
     { boys: els.noSentBoys, girls: els.noSentGirls },
-    "sent-name",
-    "sent-rank"
+    "sent-name"
   );
 }
 
@@ -776,8 +833,7 @@ async function loadPicks() {
       { boys, girls },
       { boys: els.picksBoysList, girls: els.picksGirlsList },
       { boys: els.noPicksBoys, girls: els.noPicksGirls },
-      "pick-name",
-      "pick-rank"
+      "pick-name"
     );
   }
 }
@@ -817,8 +873,7 @@ async function loadMatches() {
       { boys, girls },
       { boys: els.matchesBoysList, girls: els.matchesGirlsList },
       { boys: els.noMatchesBoys, girls: els.noMatchesGirls },
-      "match-name",
-      "match-rank"
+      "match-name"
     );
   }
 
@@ -1235,6 +1290,7 @@ async function registerServiceWorker() {
 async function bootstrap() {
   await recoverFromStaleCache();
   await registerServiceWorker();
+  initPwaInstall();
   await init();
 }
 

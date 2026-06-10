@@ -290,6 +290,19 @@ body {
   gap: 1rem;
 }
 
+.install-app-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.install-ios-hint {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
 .settings-actions {
   display: flex;
   flex-direction: column;
@@ -766,13 +779,6 @@ body {
   opacity: 1;
 }
 
-.rank {
-  font-size: 0.875rem;
-  font-weight: 500;
-  opacity: 0.75;
-  margin-bottom: 0.5rem;
-}
-
 .name {
   margin: 0;
   font-size: clamp(2rem, 8vw, 2.75rem);
@@ -971,14 +977,6 @@ body {
 .matches-list.picks-list-girls li {
   color: var(--girl-text);
   background: color-mix(in srgb, var(--girl-bg) 55%, transparent);
-}
-
-.match-rank,
-.pick-rank,
-.sent-rank {
-  font-size: 0.75rem;
-  font-weight: 500;
-  opacity: 0.65;
 }
 
 .no-matches {

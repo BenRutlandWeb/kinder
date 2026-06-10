@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-title" content="Kinder" />
   <meta name="theme-color" content="#fff8f7" />
   <meta name="description" content="Swipe baby names with your partner and find matches you both love." />
-  <meta name="kinder-asset-version" content="12" />
+  <meta name="kinder-asset-version" content="13" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>Kinder</title>
   <style>
@@ -25,7 +25,7 @@
   <link rel="icon" href="/icons/favicon-32.png" type="image/png" sizes="32x32" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="manifest" href="/manifest.webmanifest" />
-  <link rel="stylesheet" href="/style.css?v=12" />
+  <link rel="stylesheet" href="/style.css?v=13" />
 </head>
 <body>
   <section id="sign-in-screen" class="sign-in-screen">
@@ -89,7 +89,6 @@
             <article id="name-card" class="name-card hidden" aria-live="polite">
               <span class="swipe-hint swipe-hint-no">NOPE</span>
               <span class="swipe-hint swipe-hint-yes">LOVE</span>
-              <span class="rank" id="name-rank"></span>
               <h2 class="name" id="name-text"></h2>
               <p class="name-surname hidden" id="name-surname"></p>
               <span class="gender-badge" id="gender-badge"></span>
@@ -257,6 +256,16 @@
             </div>
             <p id="invite-feedback" class="invite-feedback hidden"></p>
           </div>
+          <div id="install-app-section" class="install-app-section hidden">
+            <p class="surname-label">Install app</p>
+            <button type="button" id="install-app-btn" class="settings-action-btn">
+              <span class="material-symbols-rounded" aria-hidden="true">download</span>
+              Install Kinder
+            </button>
+            <p id="install-ios-hint" class="install-ios-hint hidden">
+              On iPhone or iPad: tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>.
+            </p>
+          </div>
           <div class="settings-actions">
             <button type="button" id="clear-picks-btn" class="settings-action-btn settings-action-btn-danger" disabled>
               <span class="material-symbols-rounded" aria-hidden="true">delete_sweep</span>
@@ -322,7 +331,7 @@
     </div>
   </dialog>
 
-  <script src="/app.js?v=12"></script>
+  <script src="/app.js?v=13"></script>
 </body>
 </html>
 
