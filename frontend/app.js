@@ -171,7 +171,8 @@ function updatePartnerUI() {
 }
 
 function canNativeShare(shareData) {
-  if (!navigator.share) return false;
+  // Web Share API (and clipboard API) require HTTPS or localhost.
+  if (!window.isSecureContext || !navigator.share) return false;
   if (typeof navigator.canShare === "function") {
     return navigator.canShare(shareData);
   }
