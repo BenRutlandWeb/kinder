@@ -72,9 +72,7 @@ const els = {
   noPicks: document.getElementById("no-picks"),
   clearPicksBtn: document.getElementById("clear-picks-btn"),
   deleteAccountBtn: document.getElementById("delete-account-btn"),
-  installAppSection: document.getElementById("install-app-section"),
-  installAppBtn: document.getElementById("install-app-btn"),
-  installIosHint: document.getElementById("install-ios-hint"),
+  installAppSections: document.querySelectorAll(".install-app-banner"),
   settingsActions: document.querySelector(".settings-actions"),
   confirmDialog: document.getElementById("confirm-dialog"),
   confirmDialogTitle: document.getElementById("confirm-dialog-title"),
@@ -125,19 +123,20 @@ function isIosDevice() {
 }
 
 function updateInstallAppSection() {
-  if (!els.installAppSection) return;
+  if (!els.installAppSections.length) return;
 
-  if (isStandaloneDisplay()) {
-    els.installAppSection.classList.add("hidden");
-    return;
-  }
-
+  const hideAll = isStandaloneDisplay();
   const canInstall = Boolean(deferredInstallPrompt) || isIosDevice();
-  els.installAppSection.classList.toggle("hidden", !canInstall);
-  els.installIosHint?.classList.toggle("hidden", !isIosDevice() || Boolean(deferredInstallPrompt));
+  const show = !hideAll && canInstall;
+  const hideIosHint = !isIosDevice() || Boolean(deferredInstallPrompt);
+
+  els.installAppSections.forEach((section) => {
+    section.classList.toggle("hidden", !show);
+    section.querySelector(".install-ios-hint")?.classList.toggle("hidden", hideIosHint);
+  });
 }
 
-async function handleInstallApp() {
+async function handleInstallApp(triggerBtn) {
   if (deferredInstallPrompt) {
     deferredInstallPrompt.prompt();
     await deferredInstallPrompt.userChoice;
@@ -147,8 +146,10 @@ async function handleInstallApp() {
   }
 
   if (isIosDevice()) {
-    els.installIosHint?.classList.remove("hidden");
-    els.installIosHint?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    const section = triggerBtn?.closest(".install-app-banner");
+    const hint = section?.querySelector(".install-ios-hint");
+    hint?.classList.remove("hidden");
+    hint?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 }
 
@@ -164,8 +165,10 @@ function initPwaInstall() {
     updateInstallAppSection();
   });
 
-  els.installAppBtn?.addEventListener("click", () => {
-    void handleInstallApp();
+  document.querySelectorAll(".install-app-banner-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      void handleInstallApp(btn);
+    });
   });
 
   updateInstallAppSection();

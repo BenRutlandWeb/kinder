@@ -29,20 +29,32 @@
 </head>
 <body>
   <section id="sign-in-screen" class="sign-in-screen">
-    <img src="/icons/logo.svg" alt="Kinder" class="app-logo sign-in-logo" width="118" height="32" />
-    <p class="sign-in-prompt">Enter your email to get started</p>
-    <form id="sign-in-form" class="sign-in-form">
-      <input
-        type="email"
-        id="email-input"
-        class="surname-input"
-        placeholder="you@example.com"
-        autocomplete="email"
-        required
-      />
-      <button type="submit" class="sign-in-btn">Continue</button>
-    </form>
-    <p id="sign-in-error" class="sign-in-error hidden"></p>
+    <div class="install-app-banner hidden" role="region" aria-label="Install app">
+      <div class="install-app-banner-row">
+        <span class="material-symbols-rounded install-app-banner-icon" aria-hidden="true">download</span>
+        <p class="install-app-banner-text">Install Kinder for quick access</p>
+        <button type="button" class="install-app-banner-btn">Install</button>
+      </div>
+      <p class="install-ios-hint hidden">
+        On iPhone or iPad: tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>.
+      </p>
+    </div>
+    <div class="sign-in-body">
+      <img src="/icons/logo.svg" alt="Kinder" class="app-logo sign-in-logo" width="118" height="32" />
+      <p class="sign-in-prompt">Enter your email to get started</p>
+      <form id="sign-in-form" class="sign-in-form">
+        <input
+          type="email"
+          id="email-input"
+          class="surname-input"
+          placeholder="you@example.com"
+          autocomplete="email"
+          required
+        />
+        <button type="submit" class="sign-in-btn">Continue</button>
+      </form>
+      <p id="sign-in-error" class="sign-in-error hidden"></p>
+    </div>
   </section>
 
 
@@ -84,6 +96,16 @@
     </header>
     <div class="tab-panels">
       <section id="tab-home" class="tab-panel" role="tabpanel" aria-label="Home">
+        <div class="install-app-banner hidden" role="region" aria-label="Install app">
+          <div class="install-app-banner-row">
+            <span class="material-symbols-rounded install-app-banner-icon" aria-hidden="true">download</span>
+            <p class="install-app-banner-text">Install Kinder for quick access</p>
+            <button type="button" class="install-app-banner-btn">Install</button>
+          </div>
+          <p class="install-ios-hint hidden">
+            On iPhone or iPad: tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>.
+          </p>
+        </div>
         <main class="main">
           <div class="card-stack">
             <article id="name-card" class="name-card hidden" aria-live="polite">
@@ -255,16 +277,6 @@
               </button>
             </div>
             <p id="invite-feedback" class="invite-feedback hidden"></p>
-          </div>
-          <div id="install-app-section" class="install-app-section hidden">
-            <p class="surname-label">Install app</p>
-            <button type="button" id="install-app-btn" class="settings-action-btn">
-              <span class="material-symbols-rounded" aria-hidden="true">download</span>
-              Install Kinder
-            </button>
-            <p id="install-ios-hint" class="install-ios-hint hidden">
-              On iPhone or iPad: tap <strong>Share</strong>, then <strong>Add to Home Screen</strong>.
-            </p>
           </div>
           <div class="settings-actions">
             <button type="button" id="clear-picks-btn" class="settings-action-btn settings-action-btn-danger" disabled>
