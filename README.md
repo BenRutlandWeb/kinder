@@ -23,40 +23,9 @@ cd kinder
 docker compose up --build
 ```
 
-Open [https://localhost:8487](https://localhost:8487) (accept the browser’s certificate warning on first visit).
+Open [http://localhost:8487](http://localhost:8487).
 
-On first start, the app creates `data/babynames.db` and seeds it from the bundled sample CSVs in `sample-data/` if the names table is empty. A self-signed TLS certificate is generated in `certs/` so PWAs, offline mode, and the Share API work outside plain `localhost` HTTP.
-
-### HTTPS on your phone / LAN
-
-Browsers only treat **HTTPS** and **localhost** as secure. Opening `http://192.168.x.x:8487` blocks service workers, “Add to Home Screen”, and native share — even on your home network.
-
-Docker Compose enables TLS by default (`ENABLE_TLS=1`). For phones on Wi‑Fi, add your PC’s LAN IP to the certificate:
-
-```bash
-# .env — replace with your machine’s IP (ipconfig / ifconfig)
-TLS_SAN_HOSTS=localhost,127.0.0.1,192.168.1.42
-BASE_URL=https://192.168.1.42:8487
-```
-
-Delete old certs so they regenerate with the new IP, then restart:
-
-```bash
-rm certs/*.pem
-docker compose up --build
-```
-
-On your phone, open `https://192.168.1.42:8487`, accept the certificate warning, then use “Add to Home Screen”.
-
-**Trusting the cert (optional, fewer warnings):** install [mkcert](https://github.com/FiloSottile/mkcert) on your PC, run `mkcert -install`, then replace `certs/key.pem` and `certs/cert.pem` with mkcert-generated files for your IP/hostname.
-
-**Production with a real domain:** put Caddy, nginx, or Traefik in front and use Let’s Encrypt — do not ship a bundled self-signed cert publicly.
-
-To run without TLS (HTTP only, fine for `localhost` dev):
-
-```bash
-ENABLE_TLS=0 BASE_URL=http://localhost:8487 docker compose up
-```
+On first start, the app creates `data/babynames.db` and seeds it from the bundled sample CSVs in `sample-data/` if the names table is empty.
 
 ## Configuration
 
@@ -65,14 +34,16 @@ Configuration is via environment variables. In Docker Compose, set these under `
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `DATA_DIR` | `/data` (Docker), `./data` (local) | Directory for the SQLite database (`babynames.db`) |
-| `BASE_URL` | `https://localhost:8487` | Public URL of the app, used when generating partner invite links |
-| `ENABLE_TLS` | `1` | Generate/use self-signed certs and serve HTTPS (`0` for HTTP only) |
-| `TLS_SAN_HOSTS` | `localhost,127.0.0.1` | Hostnames and IPs included in the dev certificate (comma-separated) |
+| `BASE_URL` | `http://localhost:8487` | Public URL of the app, used when generating partner invite links |
 | `SAMPLE_DATA_DIR` | `/sample-data` or `./sample-data` | Directory containing seed CSV files (import script only) |
 
-### `BASE_URL` for production
+### HTTPS, PWA, and sharing
 
-Invite links are built from `BASE_URL`. If you deploy behind a domain or reverse proxy, set this to the URL users actually visit:
+The app serves plain HTTP. For PWA install, offline mode, and the native Share API on phones, put it behind HTTPS — e.g. Caddy or nginx with Let’s Encrypt, or a tunnel (Tailscale Funnel, ngrok, Cloudflare Tunnel). Set `BASE_URL` to the public HTTPS URL users visit.
+
+### `BASE_URL` behind a proxy or tunnel
+
+Invite links are built from `BASE_URL`. Set this to the URL users actually visit:
 
 ```bash
 # .env
