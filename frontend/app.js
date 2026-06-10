@@ -25,7 +25,6 @@ const STATUS_NO = 2;
 const els = {
   signInScreen: document.getElementById("sign-in-screen"),
   signInForm: document.getElementById("sign-in-form"),
-  nameInput: document.getElementById("name-input"),
   emailInput: document.getElementById("email-input"),
   signInError: document.getElementById("sign-in-error"),
   inviteScreen: document.getElementById("invite-screen"),
@@ -804,7 +803,6 @@ function showSignIn() {
   state.currentName = null;
   localStorage.removeItem(STORAGE_KEY);
   els.signInError.classList.add("hidden");
-  els.nameInput.value = "";
   els.emailInput.value = "";
   els.displayNameInput.value = "";
 }
@@ -833,11 +831,11 @@ async function showInviteScreen(token) {
   }
 }
 
-async function signIn(email, name) {
+async function signIn(email) {
   const res = await fetch("/api/auth", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, name }),
+    body: JSON.stringify({ email }),
   });
 
   if (!res.ok) {
@@ -854,10 +852,7 @@ els.signInForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   els.signInError.classList.add("hidden");
   try {
-    await signIn(
-      els.emailInput.value.trim(),
-      els.nameInput.value.trim()
-    );
+    await signIn(els.emailInput.value.trim());
   } catch (err) {
     els.signInError.textContent = err.message;
     els.signInError.classList.remove("hidden");

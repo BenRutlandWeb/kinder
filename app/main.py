@@ -106,7 +106,7 @@ class EmailRequest(BaseModel):
 
 
 
-class AuthRequest(EmailRequest):
+class InviteAcceptRequest(EmailRequest):
 
     name: str = Field(..., min_length=1, max_length=100)
 
@@ -364,7 +364,7 @@ async def _user_status(db, user_row) -> dict:
     return {
         "id": user_row["id"],
         "email": user_row["email"],
-        "name": _display_name(user_row),
+        "name": user_row["name"] or "",
         "linked": user_row["partner_id"] is not None,
         "partner_name": partner_name,
         "pending_invite_url": pending_invite_url,
@@ -376,7 +376,7 @@ async def _user_status(db, user_row) -> dict:
 
 @app.post("/api/auth")
 
-async def auth(body: AuthRequest):
+async def auth(body: EmailRequest):
 
     db = await get_db()
 
@@ -396,9 +396,9 @@ async def auth(body: AuthRequest):
 
             await db.execute(
 
-                "INSERT INTO users (email, name) VALUES (?, ?)",
+                "INSERT INTO users (email) VALUES (?)",
 
-                (body.email, body.name),
+                (body.email,),
 
             )
 
@@ -409,26 +409,6 @@ async def auth(body: AuthRequest):
                 "SELECT id, email, name, partner_id FROM users WHERE email = ?",
 
                 (body.email,),
-
-            )
-
-            row = await cursor.fetchone()
-
-        elif row["name"] != body.name:
-
-            await db.execute(
-
-                "UPDATE users SET name = ? WHERE id = ?", (body.name, row["id"])
-
-            )
-
-            await db.commit()
-
-            cursor = await db.execute(
-
-                "SELECT id, email, name, partner_id FROM users WHERE id = ?",
-
-                (row["id"],),
 
             )
 
@@ -601,7 +581,7 @@ async def get_invite(token: str):
 
 @app.post("/api/invite/{token}/accept")
 
-async def accept_invite(token: str, body: AuthRequest):
+async def accept_invite(token: str, body: InviteAcceptRequest):
 
     db = await get_db()
 
