@@ -106,6 +106,44 @@ class EmailRequest(BaseModel):
 
 
 
+class AuthRequest(EmailRequest):
+
+    name: str = Field(..., min_length=1, max_length=100)
+
+
+
+    @field_validator("name")
+
+    @classmethod
+
+    def normalize_name(cls, value: str) -> str:
+
+        return value.strip()
+
+
+
+
+
+class UpdateNameRequest(BaseModel):
+
+    user_id: int = Field(..., ge=1)
+
+    name: str = Field(..., min_length=1, max_length=100)
+
+
+
+    @field_validator("name")
+
+    @classmethod
+
+    def normalize_name(cls, value: str) -> str:
+
+        return value.strip()
+
+
+
+
+
 class CreateInviteRequest(BaseModel):
 
     user_id: int = Field(..., ge=1)
@@ -216,11 +254,77 @@ async def _user_already_liked_name(db, user_id: int, name: str) -> bool:
     return await cursor.fetchone() is not None
 
 
+async def _name_already_matched(
+    db, user_id: int, partner_id: int, name: str
+) -> bool:
+    cursor = await db.execute(
+        """
+        SELECT 1
+        FROM (
+            SELECT 1
+            FROM names n
+            INNER JOIN swipes s1 ON s1.name_id = n.id AND s1.user_id = ? AND s1.status = 1
+            INNER JOIN swipes s2 ON s2.name_id = n.id AND s2.user_id = ? AND s2.status = 1
+            WHERE n.name = ? COLLATE NOCASE
+
+            UNION
+
+            SELECT 1
+            FROM recommendations r
+            INNER JOIN names n ON n.id = r.name_id
+            INNER JOIN swipes s ON s.name_id = n.id AND s.user_id = r.recipient_id AND s.status = 1
+            WHERE n.name = ? COLLATE NOCASE
+              AND ((r.recommender_id = ? AND r.recipient_id = ?)
+                OR (r.recommender_id = ? AND r.recipient_id = ?))
+
+            UNION
+
+            SELECT 1
+            FROM custom_recommendations cr
+            INNER JOIN custom_swipes cs
+                ON cs.custom_recommendation_id = cr.id
+               AND cs.user_id = cr.recipient_id
+               AND cs.status = 1
+            WHERE cr.name = ? COLLATE NOCASE
+              AND ((cr.recommender_id = ? AND cr.recipient_id = ?)
+                OR (cr.recommender_id = ? AND cr.recipient_id = ?))
+        )
+        LIMIT 1
+        """,
+        (
+            user_id,
+            partner_id,
+            name,
+            name,
+            user_id,
+            partner_id,
+            partner_id,
+            user_id,
+            name,
+            user_id,
+            partner_id,
+            partner_id,
+            user_id,
+        ),
+    )
+    return await cursor.fetchone() is not None
+
+
+def _display_name(row) -> str:
+
+    name = row["name"]
+
+    return name if name else row["email"]
+
+
+
+
+
 async def _get_user_row(db, user_id: int):
 
     cursor = await db.execute(
 
-        "SELECT id, email, partner_id FROM users WHERE id = ?", (user_id,)
+        "SELECT id, email, name, partner_id FROM users WHERE id = ?", (user_id,)
 
     )
 
@@ -246,22 +350,23 @@ async def _pending_invite_url(db, inviter_id: int) -> str | None:
 
 
 async def _user_status(db, user_row) -> dict:
-    partner_email = None
+    partner_name = None
     if user_row["partner_id"]:
         cursor = await db.execute(
-            "SELECT email FROM users WHERE id = ?", (user_row["partner_id"],)
+            "SELECT email, name FROM users WHERE id = ?", (user_row["partner_id"],)
         )
         partner = await cursor.fetchone()
         if partner:
-            partner_email = partner["email"]
+            partner_name = _display_name(partner)
 
     pending_invite_url = await _pending_invite_url(db, user_row["id"])
 
     return {
         "id": user_row["id"],
         "email": user_row["email"],
+        "name": _display_name(user_row),
         "linked": user_row["partner_id"] is not None,
-        "partner_email": partner_email,
+        "partner_name": partner_name,
         "pending_invite_url": pending_invite_url,
     }
 
@@ -271,7 +376,7 @@ async def _user_status(db, user_row) -> dict:
 
 @app.post("/api/auth")
 
-async def auth(body: EmailRequest):
+async def auth(body: AuthRequest):
 
     db = await get_db()
 
@@ -279,7 +384,9 @@ async def auth(body: EmailRequest):
 
         cursor = await db.execute(
 
-            "SELECT id, email, partner_id FROM users WHERE email = ?", (body.email,)
+            "SELECT id, email, name, partner_id FROM users WHERE email = ?",
+
+            (body.email,),
 
         )
 
@@ -287,13 +394,41 @@ async def auth(body: EmailRequest):
 
         if row is None:
 
-            await db.execute("INSERT INTO users (email) VALUES (?)", (body.email,))
+            await db.execute(
+
+                "INSERT INTO users (email, name) VALUES (?, ?)",
+
+                (body.email, body.name),
+
+            )
 
             await db.commit()
 
             cursor = await db.execute(
 
-                "SELECT id, email, partner_id FROM users WHERE email = ?", (body.email,)
+                "SELECT id, email, name, partner_id FROM users WHERE email = ?",
+
+                (body.email,),
+
+            )
+
+            row = await cursor.fetchone()
+
+        elif row["name"] != body.name:
+
+            await db.execute(
+
+                "UPDATE users SET name = ? WHERE id = ?", (body.name, row["id"])
+
+            )
+
+            await db.commit()
+
+            cursor = await db.execute(
+
+                "SELECT id, email, name, partner_id FROM users WHERE id = ?",
+
+                (row["id"],),
 
             )
 
@@ -322,6 +457,52 @@ async def me(user_id: int = Query(..., ge=1)):
         if row is None:
 
             raise HTTPException(status_code=404, detail="User not found")
+
+        return await _user_status(db, row)
+
+    finally:
+
+        await db.close()
+
+
+
+
+
+@app.post("/api/me/name")
+
+async def update_name(body: UpdateNameRequest):
+
+    db = await get_db()
+
+    try:
+
+        row = await _get_user_row(db, body.user_id)
+
+        if row is None:
+
+            raise HTTPException(status_code=404, detail="User not found")
+
+
+
+        await db.execute(
+
+            "UPDATE users SET name = ? WHERE id = ?", (body.name, body.user_id)
+
+        )
+
+        await db.commit()
+
+
+
+        cursor = await db.execute(
+
+            "SELECT id, email, name, partner_id FROM users WHERE id = ?",
+
+            (body.user_id,),
+
+        )
+
+        row = await cursor.fetchone()
 
         return await _user_status(db, row)
 
@@ -376,7 +557,9 @@ async def get_invite(token: str):
 
             """
 
-            SELECT i.token, i.invitee_email, i.accepted_at, u.email AS inviter_email
+            SELECT i.token, i.invitee_email, i.accepted_at,
+
+                   u.email AS inviter_email, u.name AS inviter_name
 
             FROM invites i
 
@@ -404,7 +587,9 @@ async def get_invite(token: str):
 
 
 
-        return {"inviter_email": row["inviter_email"]}
+        inviter_name = row["inviter_name"] or row["inviter_email"]
+
+        return {"inviter_name": inviter_name}
 
     finally:
 
@@ -416,7 +601,7 @@ async def get_invite(token: str):
 
 @app.post("/api/invite/{token}/accept")
 
-async def accept_invite(token: str, body: EmailRequest):
+async def accept_invite(token: str, body: AuthRequest):
 
     db = await get_db()
 
@@ -468,7 +653,9 @@ async def accept_invite(token: str, body: EmailRequest):
 
         cursor = await db.execute(
 
-            "SELECT id, email, partner_id FROM users WHERE email = ?", (body.email,)
+            "SELECT id, email, name, partner_id FROM users WHERE email = ?",
+
+            (body.email,),
 
         )
 
@@ -476,13 +663,21 @@ async def accept_invite(token: str, body: EmailRequest):
 
         if invitee is None:
 
-            await db.execute("INSERT INTO users (email) VALUES (?)", (body.email,))
+            await db.execute(
+
+                "INSERT INTO users (email, name) VALUES (?, ?)",
+
+                (body.email, body.name),
+
+            )
 
             await db.commit()
 
             cursor = await db.execute(
 
-                "SELECT id, email, partner_id FROM users WHERE email = ?", (body.email,)
+                "SELECT id, email, name, partner_id FROM users WHERE email = ?",
+
+                (body.email,),
 
             )
 
@@ -495,6 +690,26 @@ async def accept_invite(token: str, body: EmailRequest):
                 status_code=400, detail="You are already linked with someone"
 
             )
+
+        elif invitee["name"] != body.name:
+
+            await db.execute(
+
+                "UPDATE users SET name = ? WHERE id = ?", (body.name, invitee["id"])
+
+            )
+
+            await db.commit()
+
+            cursor = await db.execute(
+
+                "SELECT id, email, name, partner_id FROM users WHERE id = ?",
+
+                (invitee["id"],),
+
+            )
+
+            invitee = await cursor.fetchone()
 
 
 
@@ -542,7 +757,9 @@ async def accept_invite(token: str, body: EmailRequest):
 
         cursor = await db.execute(
 
-            "SELECT id, email, partner_id FROM users WHERE id = ?", (invitee["id"],)
+            "SELECT id, email, name, partner_id FROM users WHERE id = ?",
+
+            (invitee["id"],),
 
         )
 
@@ -1085,6 +1302,16 @@ async def recommend(body: RecommendRequest):
             raise HTTPException(
 
                 status_code=409, detail="You already recommended this name"
+
+            )
+
+
+
+        if await _name_already_matched(db, body.user_id, partner_id, body.name):
+
+            raise HTTPException(
+
+                status_code=409, detail="You already matched on this name"
 
             )
 

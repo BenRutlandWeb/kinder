@@ -34,9 +34,27 @@
 
     <img src="/icons/logo.svg" alt="Kinder" class="app-logo sign-in-logo" width="118" height="32" />
 
-    <p class="sign-in-prompt">Enter your email to get started</p>
+    <p class="sign-in-prompt">Enter your name and email to get started</p>
 
     <form id="sign-in-form" class="sign-in-form">
+
+      <input
+
+        type="text"
+
+        id="name-input"
+
+        class="surname-input"
+
+        placeholder="Your name"
+
+        autocomplete="name"
+
+        required
+
+        maxlength="100"
+
+      />
 
       <input
 
@@ -75,6 +93,24 @@
     </p>
 
     <form id="invite-form" class="sign-in-form">
+
+      <input
+
+        type="text"
+
+        id="invite-name-input"
+
+        class="surname-input"
+
+        placeholder="Your name"
+
+        autocomplete="name"
+
+        required
+
+        maxlength="100"
+
+      />
 
       <input
 
@@ -270,7 +306,7 @@
 
             <div id="sent-recommendations" class="sent-recommendations hidden">
 
-              <h4 class="sent-recommendations-heading">Sent to partner</h4>
+              <h4 id="sent-recommendations-heading" class="sent-recommendations-heading">Sent to partner</h4>
 
               <div id="sent-recommendations-columns" class="name-columns">
 
@@ -352,10 +388,20 @@
 
           <h2 class="tab-panel-heading">Settings</h2>
 
-          <p class="swiping-as">Swiping as <strong id="current-user-label"></strong></p>
+          <div class="surname-field">
+            <label for="display-name-input" class="surname-label">Your name</label>
+            <input
+              type="text"
+              id="display-name-input"
+              class="surname-input"
+              placeholder="How you appear to your partner"
+              autocomplete="name"
+              maxlength="100"
+            />
+          </div>
 
           <div class="surname-field">
-            <label for="surname-input" class="surname-label">Surname</label>
+            <label for="surname-input" class="surname-label">Baby's surname</label>
             <input
               type="text"
               id="surname-input"
@@ -370,7 +416,7 @@
 
             <div id="partner-linked" class="partner-status hidden">
 
-              <span>Linked with <strong id="partner-email"></strong></span>
+              <span>Linked with <strong id="partner-name"></strong></span>
 
               <button type="button" id="unlink-btn" class="text-btn">Unlink</button>
 

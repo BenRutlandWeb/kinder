@@ -213,6 +213,7 @@ body {
   gap: 0.15rem;
   border: none;
   background: none;
+  font-family: inherit;
   color: var(--md-sys-color-on-surface-variant);
   cursor: pointer;
   padding: 0.25rem 0.1rem;

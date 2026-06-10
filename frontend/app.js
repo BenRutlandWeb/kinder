@@ -4,8 +4,9 @@ const SURNAME_STORAGE_KEY = "babynames-surname";
 const state = {
   userId: null,
   email: null,
+  name: null,
   linked: false,
-  partnerEmail: null,
+  partnerName: null,
   pendingInviteUrl: null,
   currentName: null,
   surname: "",
@@ -14,6 +15,7 @@ const state = {
   inviteToken: null,
   activeTab: "home",
   searchTimer: null,
+  matchedNames: new Set(),
 };
 
 const SWIPE_THRESHOLD = 80;
@@ -23,19 +25,21 @@ const STATUS_NO = 2;
 const els = {
   signInScreen: document.getElementById("sign-in-screen"),
   signInForm: document.getElementById("sign-in-form"),
+  nameInput: document.getElementById("name-input"),
   emailInput: document.getElementById("email-input"),
   signInError: document.getElementById("sign-in-error"),
   inviteScreen: document.getElementById("invite-screen"),
   inviteForm: document.getElementById("invite-form"),
+  inviteNameInput: document.getElementById("invite-name-input"),
   inviteEmailInput: document.getElementById("invite-email-input"),
   inviteInviter: document.getElementById("invite-inviter"),
   inviteError: document.getElementById("invite-error"),
   inviteSkipBtn: document.getElementById("invite-skip-btn"),
   app: document.getElementById("app"),
-  userLabel: document.getElementById("current-user-label"),
+  displayNameInput: document.getElementById("display-name-input"),
   signOutBtn: document.getElementById("sign-out-btn"),
   partnerLinked: document.getElementById("partner-linked"),
-  partnerEmail: document.getElementById("partner-email"),
+  partnerName: document.getElementById("partner-name"),
   unlinkBtn: document.getElementById("unlink-btn"),
   partnerPending: document.getElementById("partner-pending"),
   invitePartnerSection: document.getElementById("invite-partner-section"),
@@ -76,6 +80,7 @@ const els = {
   recommendSuggestions: document.getElementById("recommend-suggestions"),
   recommendFeedback: document.getElementById("recommend-feedback"),
   sentRecommendations: document.getElementById("sent-recommendations"),
+  sentRecommendationsHeading: document.getElementById("sent-recommendations-heading"),
   sentBoysList: document.getElementById("sent-boys-list"),
   sentGirlsList: document.getElementById("sent-girls-list"),
   noSentBoys: document.getElementById("no-sent-boys"),
@@ -108,13 +113,17 @@ function clearInviteFromUrl() {
 function applyUserStatus(user) {
   state.userId = user.id;
   state.email = user.email;
+  state.name = user.name;
   state.linked = user.linked;
-  state.partnerEmail = user.partner_email;
+  state.partnerName = user.partner_name;
   state.pendingInviteUrl = user.pending_invite_url;
   localStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify({ id: user.id, email: user.email })
+    JSON.stringify({ id: user.id, email: user.email, name: user.name })
   );
+  if (els.displayNameInput) {
+    els.displayNameInput.value = user.name;
+  }
 }
 
 function switchTab(tab) {
@@ -136,6 +145,7 @@ function switchTab(tab) {
   if (tab === "picks") {
     loadPicks();
     loadSentRecommendations();
+    if (state.linked) loadMatches();
   }
   if (tab === "matches") loadMatches();
 }
@@ -148,7 +158,7 @@ function updatePartnerUI() {
   els.invitePartnerSection.classList.toggle("hidden", state.linked || hasPending);
 
   if (state.linked) {
-    els.partnerEmail.textContent = state.partnerEmail;
+    els.partnerName.textContent = state.partnerName;
   }
 
   els.navBtns.matches.classList.toggle("hidden", !state.linked);
@@ -323,6 +333,27 @@ function saveSurname(value) {
   }
 }
 
+async function saveDisplayName(value) {
+  const name = value.trim();
+  if (!name || !state.userId || name === state.name) return;
+
+  const res = await fetch("/api/me/name", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: state.userId, name }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Could not update name");
+  }
+
+  const user = await res.json();
+  applyUserStatus(user);
+  updatePartnerUI();
+  updateRecommendUI();
+}
+
 function updateCardSurname() {
   if (state.surname) {
     els.nameSurname.textContent = state.surname;
@@ -493,7 +524,9 @@ function updateRecommendUI() {
   els.recommendSection.classList.remove("hidden");
 
   if (state.linked) {
-    els.recommendHeading.textContent = "Recommend to partner";
+    const partner = state.partnerName || "your partner";
+    els.recommendHeading.textContent = `Recommend to ${partner}`;
+    els.sentRecommendationsHeading.textContent = `Sent to ${partner}`;
     els.recommendHint.textContent =
       "Suggest any name — it'll show up first on their home screen. Known names are matched from the database automatically.";
     els.recommendBtnLabel.textContent = "Send";
@@ -516,10 +549,19 @@ function setRecommendGender(gender) {
   updateRecommendBtnState();
 }
 
+function isNameMatched(name) {
+  return state.linked && state.matchedNames.has(name.toLowerCase());
+}
+
 function updateRecommendBtnState() {
   const name = els.recommendInput.value.trim();
   const gender = getSelectedRecommendGender();
-  els.recommendBtn.disabled = name.length < 1 || !gender;
+  const matched = isNameMatched(name);
+  els.recommendBtn.disabled = name.length < 1 || !gender || matched;
+
+  if (matched) {
+    showRecommendFeedback("You already matched on this name", true);
+  }
 }
 
 function clearRecommendSelection() {
@@ -610,7 +652,7 @@ async function submitRecommendation(e) {
 
     showRecommendFeedback(
       state.linked
-        ? `Sent "${name}" to your partner!`
+        ? `Sent "${name}" to ${state.partnerName || "your partner"}!`
         : `Added "${name}" to your picks!`
     );
     clearRecommendSelection();
@@ -696,6 +738,8 @@ async function loadMatches() {
   const data = await res.json();
   if (!data.linked) return;
 
+  state.matchedNames = new Set(data.matches.map((item) => item.name.toLowerCase()));
+
   const { boys, girls } = splitByGender(data.matches);
   const hasMatches = data.matches.length > 0;
 
@@ -711,6 +755,8 @@ async function loadMatches() {
       "match-rank"
     );
   }
+
+  updateRecommendBtnState();
 }
 
 function hideAllScreens() {
@@ -722,10 +768,11 @@ function hideAllScreens() {
 function showApp() {
   hideAllScreens();
   els.app.classList.remove("hidden");
-  els.userLabel.textContent = state.email;
   updatePartnerUI();
   switchTab("home");
-  Promise.all([fetchNextName(), loadPicks()]).catch(() => alert("Failed to load names."));
+  const initLoads = [fetchNextName(), loadPicks()];
+  if (state.linked) initLoads.push(loadMatches());
+  Promise.all(initLoads).catch(() => alert("Failed to load names."));
 }
 
 function showSignIn() {
@@ -733,13 +780,16 @@ function showSignIn() {
   els.signInScreen.classList.remove("hidden");
   state.userId = null;
   state.email = null;
+  state.name = null;
   state.linked = false;
-  state.partnerEmail = null;
+  state.partnerName = null;
   state.pendingInviteUrl = null;
   state.currentName = null;
   localStorage.removeItem(STORAGE_KEY);
   els.signInError.classList.add("hidden");
+  els.nameInput.value = "";
   els.emailInput.value = "";
+  els.displayNameInput.value = "";
 }
 
 async function showInviteScreen(token) {
@@ -756,7 +806,8 @@ async function showInviteScreen(token) {
       throw new Error(err.detail || "Invite not found");
     }
     const invite = await res.json();
-    els.inviteInviter.textContent = invite.inviter_email;
+    els.inviteInviter.textContent = invite.inviter_name;
+    els.inviteNameInput.value = "";
     els.inviteEmailInput.value = "";
   } catch (err) {
     els.inviteError.textContent = err.message;
@@ -765,11 +816,11 @@ async function showInviteScreen(token) {
   }
 }
 
-async function signInWithEmail(email) {
+async function signIn(email, name) {
   const res = await fetch("/api/auth", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, name }),
   });
 
   if (!res.ok) {
@@ -786,7 +837,10 @@ els.signInForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   els.signInError.classList.add("hidden");
   try {
-    await signInWithEmail(els.emailInput.value.trim());
+    await signIn(
+      els.emailInput.value.trim(),
+      els.nameInput.value.trim()
+    );
   } catch (err) {
     els.signInError.textContent = err.message;
     els.signInError.classList.remove("hidden");
@@ -801,7 +855,10 @@ els.inviteForm.addEventListener("submit", async (e) => {
     const res = await fetch(`/api/invite/${encodeURIComponent(state.inviteToken)}/accept`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: els.inviteEmailInput.value.trim() }),
+      body: JSON.stringify({
+        email: els.inviteEmailInput.value.trim(),
+        name: els.inviteNameInput.value.trim(),
+      }),
     });
 
     if (!res.ok) {
@@ -927,6 +984,22 @@ for (const [tab, btn] of Object.entries(els.navBtns)) {
   btn.addEventListener("click", () => switchTab(tab));
 }
 
+els.displayNameInput.addEventListener("blur", async () => {
+  try {
+    await saveDisplayName(els.displayNameInput.value);
+  } catch (err) {
+    els.displayNameInput.value = state.name;
+    alert(err.message);
+  }
+});
+
+els.displayNameInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    els.displayNameInput.blur();
+  }
+});
+
 els.surnameInput.addEventListener("input", () => {
   saveSurname(els.surnameInput.value);
   if (state.currentName && !els.card.classList.contains("hidden")) {
@@ -941,8 +1014,10 @@ els.recommendForm.addEventListener("submit", submitRecommendation);
 
 els.recommendInput.addEventListener("input", () => {
   const query = els.recommendInput.value.trim();
+  if (!isNameMatched(query)) {
+    els.recommendFeedback.classList.add("hidden");
+  }
   updateRecommendBtnState();
-  els.recommendFeedback.classList.add("hidden");
 
   if (query.length < 2) {
     hideRecommendSuggestions();

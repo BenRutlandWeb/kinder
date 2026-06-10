@@ -70,6 +70,8 @@ async def _migrate_users_table(db: aiosqlite.Connection) -> None:
 
                 email TEXT NOT NULL UNIQUE,
 
+                name TEXT,
+
                 partner_id INTEGER REFERENCES users(id)
 
             )
@@ -101,6 +103,18 @@ async def _migrate_users_table(db: aiosqlite.Connection) -> None:
             "ALTER TABLE users ADD COLUMN partner_id INTEGER REFERENCES users(id)"
 
         )
+
+
+
+    cursor = await db.execute("PRAGMA table_info(users)")
+
+    cols = {row[1] for row in await cursor.fetchall()}
+
+
+
+    if "name" not in cols:
+
+        await db.execute("ALTER TABLE users ADD COLUMN name TEXT")
 
 
 
